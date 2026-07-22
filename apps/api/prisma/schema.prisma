@@ -1,7 +1,6 @@
-// Smart Form Builder — Phase 1 schema
-// Phase 2 additions (not implemented yet): Page, Attachment, Payment, Role,
-// Permission, Notification, ApiKey. Sketched at the bottom as comments so the
-// eventual migration path is clear without shipping half-built models now.
+// Smart Form Builder schema — Phase 1 (core) + Phase 2 (roles/departments).
+// Remaining phases sketched at the bottom as comments so the eventual
+// migration path is clear without shipping half-built models now.
 
 generator client {
   provider = "prisma-client-js"
@@ -34,10 +33,53 @@ model User {
   name          String
   email         String         @unique
   passwordHash  String
+  // Bypasses all permission checks and can manage departments/roles/members.
+  // A full admin panel (users, billing, logs) arrives in a later phase; this
+  // flag is the minimal seed that phase builds on.
+  isSuperAdmin  Boolean        @default(false)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   forms         Form[]
   refreshTokens RefreshToken[]
+  memberships   Membership[]
+}
+
+model Department {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  memberships Membership[]
+  forms       Form[]
+}
+
+model Role {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  canView     Boolean      @default(true)
+  canCreate   Boolean      @default(false)
+  canEdit     Boolean      @default(false)
+  canDelete   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  memberships Membership[]
+}
+
+// A user's role within one department. A user can hold several of these
+// (multiple departments, and/or multiple roles within one department).
+model Membership {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, departmentId, roleId])
+  @@index([userId])
+  @@index([departmentId])
 }
 
 model RefreshToken {
@@ -53,19 +95,25 @@ model RefreshToken {
 }
 
 model Form {
-  id          String     @id @default(cuid())
+  id          String      @id @default(cuid())
   title       String
   description String?
-  slug        String     @unique
-  status      FormStatus @default(DRAFT)
+  slug        String      @unique
+  status      FormStatus  @default(DRAFT)
   ownerId     String
-  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner       User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // Null = private form, visible only to its owner (and super admins) —
+  // the original Phase 1 behavior. Set = department-wide access applies,
+  // per each member's role permissions.
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   fields      Field[]
   responses   Response[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   @@index([ownerId])
+  @@index([departmentId])
 }
 
 model Field {
@@ -117,13 +165,13 @@ model Template {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 2 (sketch only — not migrated):
+// Later phases (sketch only — not migrated):
 //
-// model Page          { id, formId, order, title }                 // multi-page forms
-// model Attachment    { id, answerId, url, mimeType, size }         // file/image upload fields
-// model Payment       { id, responseId, provider, amount, status }  // payment field
-// model Role          { id, name }                                 // admin panel RBAC
-// model Permission    { id, roleId, action, resource }              // admin panel RBAC
+// model ApprovalFlow  { id, formId, sequential }                    // Phase 3
+// model ApprovalStep  { id, flowId, order, approverRoleId|approverUserId }  // Phase 3
+// model Page          { id, formId, order, title }                 // Phase 4 — multi-page forms
+// model Attachment    { id, answerId, url, mimeType, size }         // Phase 6 — file/image upload fields
+// model Payment       { id, responseId, provider, amount, status }  // Phase 6 — payment field
 // model Notification  { id, userId, type, payload, readAt }         // in-app notifications
-// model ApiKey        { id, userId, keyHash, label, lastUsedAt }    // public API access
+// model ApiKey        { id, userId, keyHash, label, lastUsedAt }    // Phase 8 — public API access
 // ---------------------------------------------------------------------------

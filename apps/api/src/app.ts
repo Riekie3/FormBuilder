@@ -6,6 +6,7 @@ import { env } from "./env";
 import { authRouter } from "./routes/auth.routes";
 import { formsRouter } from "./routes/forms.routes";
 import { publicRouter } from "./routes/public.routes";
+import { adminRouter } from "./routes/admin.routes";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
 export function createApp() {
@@ -27,6 +28,7 @@ export function createApp() {
   app.use("/api/auth", authRouter);
   app.use("/api/forms", formsRouter);
   app.use("/api/public", publicRouter);
+  app.use("/api/admin", adminRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

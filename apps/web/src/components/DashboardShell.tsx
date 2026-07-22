@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutGrid, LogOut } from "lucide-react";
+import { LayoutGrid, LogOut, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -17,6 +17,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             Smart Form Builder
           </Link>
           <div className="flex items-center gap-3">
+            {user?.isSuperAdmin && (
+              <Link
+                href="/dashboard/admin"
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              >
+                <ShieldCheck size={14} /> Admin
+              </Link>
+            )}
             <span className="hidden text-sm text-slate-500 sm:block dark:text-slate-400">{user?.email}</span>
             <ThemeToggle />
             <button

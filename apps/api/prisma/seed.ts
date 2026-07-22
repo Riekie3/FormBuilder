@@ -8,15 +8,61 @@ async function main() {
 
   const user = await prisma.user.upsert({
     where: { email: "demo@smartformbuilder.dev" },
-    update: {},
+    update: { isSuperAdmin: true },
     create: {
       name: "Demo User",
       email: "demo@smartformbuilder.dev",
       passwordHash,
+      isSuperAdmin: true,
     },
   });
 
+  const colleague = await prisma.user.upsert({
+    where: { email: "colleague@smartformbuilder.dev" },
+    update: {},
+    create: {
+      name: "Colleague User",
+      email: "colleague@smartformbuilder.dev",
+      passwordHash,
+    },
+  });
+
+  const operations = await prisma.department.upsert({
+    where: { name: "Operations" },
+    update: {},
+    create: { name: "Operations" },
+  });
+
+  await prisma.role.upsert({
+    where: { name: "Viewer" },
+    update: {},
+    create: { name: "Viewer", canView: true, canCreate: false, canEdit: false, canDelete: false },
+  });
+
+  const editorRole = await prisma.role.upsert({
+    where: { name: "Editor" },
+    update: {},
+    create: { name: "Editor", canView: true, canCreate: true, canEdit: true, canDelete: false },
+  });
+
+  await prisma.role.upsert({
+    where: { name: "Manager" },
+    update: {},
+    create: { name: "Manager", canView: true, canCreate: true, canEdit: true, canDelete: true },
+  });
+
+  await prisma.membership.upsert({
+    where: {
+      userId_departmentId_roleId: { userId: colleague.id, departmentId: operations.id, roleId: editorRole.id },
+    },
+    update: {},
+    create: { userId: colleague.id, departmentId: operations.id, roleId: editorRole.id },
+  });
+
   const existingForm = await prisma.form.findFirst({ where: { ownerId: user.id, slug: "contact-us-demo" } });
+  if (existingForm && !existingForm.departmentId) {
+    await prisma.form.update({ where: { id: existingForm.id }, data: { departmentId: operations.id } });
+  }
   if (!existingForm) {
     await prisma.form.create({
       data: {
@@ -25,6 +71,7 @@ async function main() {
         slug: "contact-us-demo",
         status: "PUBLISHED",
         ownerId: user.id,
+        departmentId: operations.id,
         fields: {
           create: [
             { type: "TEXT", label: "Full Name", required: true, order: 0, config: { placeholder: "Jane Doe" } },
@@ -66,7 +113,9 @@ async function main() {
     },
   });
 
-  console.log("Seed complete. Demo login: demo@smartformbuilder.dev / Demo1234!");
+  console.log("Seed complete.");
+  console.log("Super admin login: demo@smartformbuilder.dev / Demo1234!");
+  console.log("Editor (Operations dept) login: colleague@smartformbuilder.dev / Demo1234!");
 }
 
 main()

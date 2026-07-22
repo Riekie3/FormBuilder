@@ -11,8 +11,9 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useForms } from "@/hooks/useForms";
 
 function DashboardContent() {
-  const { forms, loading, error, createForm, deleteForm } = useForms();
+  const { forms, creatableDepartments, loading, error, createForm, deleteForm } = useForms();
   const [newTitle, setNewTitle] = useState("");
+  const [newDepartmentId, setNewDepartmentId] = useState("");
   const [creating, setCreating] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [formPendingDelete, setFormPendingDelete] = useState<FormSummaryDto | null>(null);
@@ -33,7 +34,7 @@ function DashboardContent() {
   async function handleCreate() {
     setCreating(true);
     try {
-      const form = await createForm(newTitle.trim() || "Untitled Form");
+      const form = await createForm(newTitle.trim() || "Untitled Form", newDepartmentId || null);
       setNewTitle("");
       router.push(`/dashboard/forms/${form.id}/builder`);
     } finally {
@@ -61,6 +62,21 @@ function DashboardContent() {
             placeholder="Form title (optional)"
             className="input-field w-56"
           />
+          {creatableDepartments.length > 0 && (
+            <select
+              value={newDepartmentId}
+              onChange={(e) => setNewDepartmentId(e.target.value)}
+              className="input-field w-40"
+              aria-label="Department"
+            >
+              <option value="">Private (just me)</option>
+              {creatableDepartments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          )}
           <button type="button" onClick={handleCreate} disabled={creating} className="btn-primary">
             <Plus size={16} /> Create
           </button>
@@ -84,39 +100,48 @@ function DashboardContent() {
           {forms.map((form) => (
             <div key={form.id} className="card relative flex flex-col gap-3 p-5">
               <div className="flex items-start justify-between">
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    form.status === "PUBLISHED"
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                  }`}
-                >
-                  {form.status === "PUBLISHED" ? "Published" : "Draft"}
-                </span>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setOpenMenuId(openMenuId === form.id ? null : form.id)}
-                    className="rounded-full p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    aria-label="Form actions"
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      form.status === "PUBLISHED"
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                    }`}
                   >
-                    <MoreVertical size={16} />
-                  </button>
-                  {openMenuId === form.id && (
-                    <div className="absolute right-0 z-10 mt-1 w-36 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOpenMenuId(null);
-                          setFormPendingDelete(form);
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
-                      >
-                        <Trash2 size={14} /> Delete
-                      </button>
-                    </div>
+                    {form.status === "PUBLISHED" ? "Published" : "Draft"}
+                  </span>
+                  {form.departmentName && (
+                    <span className="rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+                      {form.departmentName}
+                    </span>
                   )}
                 </div>
+                {form.canDelete && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setOpenMenuId(openMenuId === form.id ? null : form.id)}
+                      className="rounded-full p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      aria-label="Form actions"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {openMenuId === form.id && (
+                      <div className="absolute right-0 z-10 mt-1 w-36 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            setFormPendingDelete(form);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                        >
+                          <Trash2 size={14} /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <Link href={`/dashboard/forms/${form.id}/builder`} className="font-semibold text-slate-900 dark:text-white">
@@ -128,7 +153,7 @@ function DashboardContent() {
 
               <div className="mt-2 flex gap-2 border-t border-slate-100 pt-3 text-sm dark:border-slate-800">
                 <Link href={`/dashboard/forms/${form.id}/builder`} className="font-medium text-brand-600 dark:text-brand-400">
-                  Edit
+                  {form.canEdit ? "Edit" : "View"}
                 </Link>
                 <Link href={`/dashboard/forms/${form.id}/responses`} className="font-medium text-slate-500 dark:text-slate-400">
                   Responses

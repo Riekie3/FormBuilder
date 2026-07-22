@@ -4,9 +4,9 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phase 1 of 8** on the roadmap: a real, fully working foundation
-covering core form building and submission. See [Roadmap](#roadmap) for what's
-planned in each later phase.
+This is **Phases 1-2 of 8** on the roadmap: core form building/submission,
+plus department-based roles and permissions. See [Roadmap](#roadmap) for
+what's planned in each later phase.
 
 ## Stack
 
@@ -55,9 +55,14 @@ npm run dev:api
 npm run dev:web
 ```
 
-Visit `http://localhost:3000`. Seeded demo login: `demo@smartformbuilder.dev` /
-`Demo1234!` (also seeds one published "Contact Us" form and a "Contact Form"
-template).
+Visit `http://localhost:3000`. Two seeded logins (both password `Demo1234!`):
+
+- `demo@smartformbuilder.dev` — super admin, sees `/dashboard/admin`
+- `colleague@smartformbuilder.dev` — regular user with an Editor role
+  (view/create/edit, no delete) in the seeded "Operations" department
+
+Also seeds one published "Contact Us" form (in Operations) and a "Contact
+Form" template.
 
 ## Tests
 
@@ -68,7 +73,9 @@ npm run test:api
 
 Covers the auth flow (register/login/refresh rotation/me), form CRUD,
 ownership isolation, bulk field save with id-preserving upserts, publish/public
-visibility, and the public submission → response → CSV export path.
+visibility, the public submission → response → CSV export path, and
+department-wide permission boundaries (admin-route gating, view/edit/delete
+enforcement, create-permission checks).
 
 ## Project structure
 
@@ -116,25 +123,45 @@ to "Untitled Form"), and delete confirmations use an in-app dialog instead of
 the native `window.confirm()` popup, which browsers/extensions can silently
 suppress.
 
-### Phase 2 — Roles, Departments & Permissions ⬜ not started
+### Phase 2 — Roles, Departments & Permissions ✅ done
 
-Foundational — moved to the front because Phase 3 (Approval Workflows) needs
-real roles to assign approvers from, and retrofitting a permission system
-after Phases 4-8 exist would be far more disruptive than building it now.
+Foundational — built first because Phase 3 (Approval Workflows) needs real
+roles to assign approvers from, and retrofitting a permission system after
+Phases 4-8 existed would have been far more disruptive.
 
-- **Department** entity: create/edit departments, assign users to one
-- **Custom Role builder**: admins define roles (not a fixed enum) with a
-  permission matrix — per role, per form: View / Create / Edit / Delete
-- Scope resolution: does Role X in Department Y see Form Z? (by form owner's
-  department, explicit share, or role's declared scope)
-- Migrate the current single-owner model to owner + role assignments,
-  backward compatible with existing forms
-- Admin UI: manage departments, manage roles + permission matrix, assign users
+Resolved with the client: role access is **department-wide** (a role grants
+access to every form in that department, not per-form grants), and a user
+**can hold multiple roles across multiple departments** at once.
 
-Open questions for the client before finalizing the data model: is a Custom
-Role's access account-wide within its department, or does an admin also need
-to grant per-form access on top of department scope? Can one user hold
-multiple roles or belong to multiple departments?
+- **Department** model: super-admin-managed, users are assigned to one or
+  more via Membership
+- **Custom Role** model: admin-defined (not a fixed enum) with a permission
+  matrix — `canView` / `canCreate` / `canEdit` / `canDelete`
+- **Membership** join model: (user, department, role) — a user can hold
+  several
+- Permission resolution (`apps/api/src/lib/permissions.ts`): the form owner
+  and super admins always have full access; otherwise access is the union of
+  every role the user holds in the form's department. A form with no
+  department is private to its owner (original Phase 1 behavior)
+- `User.isSuperAdmin` flag bypasses all checks — the minimal seed the full
+  admin panel (Phase 6) builds on
+- Forms API updated throughout: list/create/view/edit/delete/fields/responses
+  all check resolved permissions instead of strict ownership; a form can be
+  created private or under a department (creator needs `canCreate` there);
+  `PATCH` can move a form between departments (checked the same way)
+- Admin UI at `/dashboard/admin` (super-admin gated, both client- and
+  server-side): manage departments, manage roles + permission matrix, assign
+  members
+- Dashboard: department badge on form cards, a department picker on create
+  (only shown if the user can create in at least one), Edit/Delete controls
+  hidden per the user's actual `canEdit`/`canDelete` on each form
+- 7 new API tests covering admin-route gating and department-wide access
+  boundaries (view/edit granted, delete correctly refused, forms hidden
+  entirely from non-members, create blocked without `canCreate`)
+- Seed data: demo user is now a super admin; a `colleague@smartformbuilder.dev`
+  / `Demo1234!` user is seeded with an Editor role (view+create+edit, no
+  delete) in a seeded "Operations" department, which the seeded "Contact Us"
+  form belongs to — log in as both to see the permission boundary firsthand
 
 ### Phase 3 — Approval Workflows ⬜ not started
 

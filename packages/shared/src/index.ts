@@ -46,6 +46,12 @@ export interface FormSummaryDto {
   slug: string;
   status: FormStatus;
   responseCount: number;
+  departmentId: string | null;
+  departmentName: string | null;
+  // What the *current* user can do with this form — lets the UI hide
+  // Edit/Delete for forms granted via a view-only role.
+  canEdit: boolean;
+  canDelete: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -77,6 +83,44 @@ export interface AuthUserDto {
   id: string;
   name: string;
   email: string;
+  isSuperAdmin: boolean;
+}
+
+export interface DepartmentDto {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoleDto {
+  id: string;
+  name: string;
+  canView: boolean;
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MembershipDto {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  departmentId: string;
+  departmentName: string;
+  roleId: string;
+  roleName: string;
+  createdAt: string;
+}
+
+export interface AdminUserDto {
+  id: string;
+  name: string;
+  email: string;
+  isSuperAdmin: boolean;
 }
 
 export const FIELD_TYPE_LABELS: Record<FieldType, string> = {

@@ -48,8 +48,8 @@ async function issueTokens(userId: string) {
   return { accessToken, refreshToken };
 }
 
-function toAuthUserDto(user: { id: string; name: string; email: string }): AuthUserDto {
-  return { id: user.id, name: user.name, email: user.email };
+function toAuthUserDto(user: { id: string; name: string; email: string; isSuperAdmin: boolean }): AuthUserDto {
+  return { id: user.id, name: user.name, email: user.email, isSuperAdmin: user.isSuperAdmin };
 }
 
 authRouter.post(
