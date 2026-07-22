@@ -4,8 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FileText, MoreVertical, Plus, Trash2 } from "lucide-react";
+import type { FormSummaryDto } from "@sfb/shared";
 import { AuthGate } from "@/components/AuthGate";
 import { DashboardShell } from "@/components/DashboardShell";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useForms } from "@/hooks/useForms";
 
 function DashboardContent() {
@@ -13,13 +15,25 @@ function DashboardContent() {
   const [newTitle, setNewTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [formPendingDelete, setFormPendingDelete] = useState<FormSummaryDto | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const router = useRouter();
 
+  async function handleConfirmDelete() {
+    if (!formPendingDelete) return;
+    setDeleting(true);
+    try {
+      await deleteForm(formPendingDelete.id);
+      setFormPendingDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function handleCreate() {
-    if (!newTitle.trim()) return;
     setCreating(true);
     try {
-      const form = await createForm(newTitle.trim());
+      const form = await createForm(newTitle.trim() || "Untitled Form");
       setNewTitle("");
       router.push(`/dashboard/forms/${form.id}/builder`);
     } finally {
@@ -44,10 +58,10 @@ function DashboardContent() {
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            placeholder="New form title..."
+            placeholder="Form title (optional)"
             className="input-field w-56"
           />
-          <button type="button" onClick={handleCreate} disabled={creating || !newTitle.trim()} className="btn-primary">
+          <button type="button" onClick={handleCreate} disabled={creating} className="btn-primary">
             <Plus size={16} /> Create
           </button>
         </div>
@@ -92,11 +106,9 @@ function DashboardContent() {
                     <div className="absolute right-0 z-10 mt-1 w-36 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
                       <button
                         type="button"
-                        onClick={async () => {
+                        onClick={() => {
                           setOpenMenuId(null);
-                          if (confirm(`Delete "${form.title}"? This cannot be undone.`)) {
-                            await deleteForm(form.id);
-                          }
+                          setFormPendingDelete(form);
                         }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
                       >
@@ -125,6 +137,16 @@ function DashboardContent() {
             </div>
           ))}
         </div>
+      )}
+
+      {formPendingDelete && (
+        <ConfirmDialog
+          title="Delete this form?"
+          message={`"${formPendingDelete.title}" and all of its responses will be permanently deleted. This cannot be undone.`}
+          confirmLabel={deleting ? "Deleting..." : "Delete"}
+          onCancel={() => setFormPendingDelete(null)}
+          onConfirm={handleConfirmDelete}
+        />
       )}
     </div>
   );

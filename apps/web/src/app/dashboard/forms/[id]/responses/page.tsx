@@ -7,6 +7,7 @@ import { ArrowLeft, Download, Search, Trash2 } from "lucide-react";
 import type { FieldDto } from "@sfb/shared";
 import { AuthGate } from "@/components/AuthGate";
 import { DashboardShell } from "@/components/DashboardShell";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useResponses } from "@/hooks/useResponses";
 
 // Answers store the option's stable `value`, not its display label — map back
@@ -29,8 +30,21 @@ function ResponsesContent() {
   const params = useParams<{ id: string }>();
   const [search, setSearch] = useState("");
   const { form, responses, loading, error, deleteResponse, exportCsv } = useResponses(params.id, search);
+  const [responsePendingDelete, setResponsePendingDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const orderedFields = form?.fields ?? [];
+
+  async function handleConfirmDelete() {
+    if (!responsePendingDelete) return;
+    setDeleting(true);
+    try {
+      await deleteResponse(responsePendingDelete);
+      setResponsePendingDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div>
@@ -95,7 +109,7 @@ function ResponsesContent() {
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => confirm("Delete this response?") && deleteResponse(response.id)}
+                        onClick={() => setResponsePendingDelete(response.id)}
                         className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
                         aria-label="Delete response"
                       >
@@ -108,6 +122,16 @@ function ResponsesContent() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {responsePendingDelete && (
+        <ConfirmDialog
+          title="Delete this response?"
+          message="This response will be permanently deleted. This cannot be undone."
+          confirmLabel={deleting ? "Deleting..." : "Delete"}
+          onCancel={() => setResponsePendingDelete(null)}
+          onConfirm={handleConfirmDelete}
+        />
       )}
     </div>
   );
