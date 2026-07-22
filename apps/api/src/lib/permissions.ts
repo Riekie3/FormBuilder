@@ -66,3 +66,24 @@ export async function isSuperAdmin(userId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   return user?.isSuperAdmin ?? false;
 }
+
+/**
+ * Can this user decide (Approve/Reject) on the form's pending responses?
+ * The owner and super admins always can; otherwise the user must hold the
+ * form's designated approverRole within the form's department.
+ */
+export async function canDecideOnForm(
+  userId: string,
+  form: { ownerId: string; departmentId: string | null; approverRoleId: string | null },
+): Promise<boolean> {
+  if (form.ownerId === userId) return true;
+  if (!form.departmentId || !form.approverRoleId) return false;
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (user?.isSuperAdmin) return true;
+
+  const membership = await prisma.membership.findFirst({
+    where: { userId, departmentId: form.departmentId, roleId: form.approverRoleId },
+  });
+  return !!membership;
+}

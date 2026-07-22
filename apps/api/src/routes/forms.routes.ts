@@ -5,15 +5,29 @@ import { requireAuth } from "../middleware/auth";
 import { asyncHandler, HttpError } from "../middleware/errorHandler";
 import { slugify } from "../lib/slug";
 import { toCsv } from "../lib/csv";
-import { canCreateInDepartment, isSuperAdmin, resolveFormPermissions, viewableDepartmentIds } from "../lib/permissions";
+import {
+  canCreateInDepartment,
+  canDecideOnForm,
+  isSuperAdmin,
+  resolveFormPermissions,
+  viewableDepartmentIds,
+} from "../lib/permissions";
 import { FIELD_TYPES } from "@sfb/shared";
-import type { FieldDto, FormDetailDto, FormSummaryDto } from "@sfb/shared";
+import type { FieldDto, FormDetailDto, FormSummaryDto, ResponseDto } from "@sfb/shared";
 import type { Field as PrismaField, Form as PrismaForm } from "@prisma/client";
 
 export const formsRouter = Router();
 formsRouter.use(requireAuth);
 
-type FormWithDepartment = PrismaForm & { department: { name: string } | null };
+type FormWithRelations = PrismaForm & {
+  department: { name: string } | null;
+  approverRole: { name: string } | null;
+};
+
+const FORM_INCLUDE = {
+  department: { select: { name: true } },
+  approverRole: { select: { name: true } },
+} as const;
 
 /**
  * Loads a form and enforces the requested action against the caller's
@@ -25,8 +39,8 @@ async function loadAccessibleForm(
   formId: string,
   userId: string,
   requiredAction: "view" | "edit" | "delete",
-): Promise<FormWithDepartment> {
-  const form = await prisma.form.findUnique({ where: { id: formId }, include: { department: { select: { name: true } } } });
+): Promise<FormWithRelations> {
+  const form = await prisma.form.findUnique({ where: { id: formId }, include: FORM_INCLUDE });
   if (!form) throw new HttpError(404, "Form not found");
 
   const perms = await resolveFormPermissions(userId, form);
@@ -48,11 +62,17 @@ function toFieldDto(field: PrismaField): FieldDto {
   };
 }
 
-function toSummaryDto(
-  form: FormWithDepartment,
+async function toSummaryDto(
+  form: FormWithRelations,
   responseCount: number,
   perms: { canEdit: boolean; canDelete: boolean },
-): FormSummaryDto {
+  userId: string,
+): Promise<FormSummaryDto> {
+  const canApprove = form.requiresApproval ? await canDecideOnForm(userId, form) : false;
+  const pendingCount = form.requiresApproval
+    ? await prisma.response.count({ where: { formId: form.id, status: "PENDING" } })
+    : 0;
+
   return {
     id: form.id,
     title: form.title,
@@ -63,6 +83,11 @@ function toSummaryDto(
     departmentName: form.department?.name ?? null,
     canEdit: perms.canEdit,
     canDelete: perms.canDelete,
+    requiresApproval: form.requiresApproval,
+    approverRoleId: form.approverRoleId,
+    approverRoleName: form.approverRole?.name ?? null,
+    canApprove,
+    pendingCount,
     createdAt: form.createdAt.toISOString(),
     updatedAt: form.updatedAt.toISOString(),
   };
@@ -78,6 +103,8 @@ const updateFormSchema = z.object({
   description: z.string().trim().max(2000).nullable().optional(),
   status: z.enum(["DRAFT", "PUBLISHED"]).optional(),
   departmentId: z.string().nullable().optional(),
+  requiresApproval: z.boolean().optional(),
+  approverRoleId: z.string().nullable().optional(),
 });
 
 const fieldOptionSchema = z.object({
@@ -107,6 +134,11 @@ const fieldsPayloadSchema = z.object({
   fields: z.array(fieldInputSchema).max(200),
 });
 
+const decisionSchema = z.object({
+  decision: z.enum(["APPROVED", "REJECTED"]),
+  comment: z.string().trim().max(1000).optional(),
+});
+
 // GET /api/forms/my-departments — departments the caller can create forms
 // in, for the "create under a department" picker (not an admin endpoint —
 // every user needs to see their own memberships).
@@ -123,6 +155,62 @@ formsRouter.get(
   }),
 );
 
+// GET /api/forms/available-roles — every role, for the approver-role picker
+// in form settings. Role names/permissions aren't sensitive; any
+// authenticated user can see the list (only super admins can create/edit them).
+formsRouter.get(
+  "/available-roles",
+  asyncHandler(async (_req, res) => {
+    const roles = await prisma.role.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } });
+    res.json({ roles });
+  }),
+);
+
+// GET /api/forms/pending-approvals — every PENDING response across forms the
+// caller can decide on (their own forms, or forms where they hold the
+// designated approver role in that department; super admins see all).
+formsRouter.get(
+  "/pending-approvals",
+  asyncHandler(async (req, res) => {
+    const userId = req.userId!;
+    const admin = await isSuperAdmin(userId);
+
+    const candidateForms = await prisma.form.findMany({
+      where: { requiresApproval: true },
+      include: FORM_INCLUDE,
+    });
+
+    const decidable = admin
+      ? candidateForms
+      : (
+          await Promise.all(candidateForms.map(async (f) => ((await canDecideOnForm(userId, f)) ? f : null)))
+        ).filter((f): f is FormWithRelations => f !== null);
+
+    const results = await Promise.all(
+      decidable.map(async (form) => {
+        const [responses, fields] = await Promise.all([
+          prisma.response.findMany({
+            where: { formId: form.id, status: "PENDING" },
+            orderBy: { submittedAt: "asc" },
+            include: { answers: true },
+          }),
+          prisma.field.findMany({ where: { formId: form.id }, orderBy: { order: "asc" } }),
+        ]);
+        return responses.map((r) => ({
+          responseId: r.id,
+          formId: form.id,
+          formTitle: form.title,
+          submittedAt: r.submittedAt.toISOString(),
+          answers: r.answers.map((a) => ({ fieldId: a.fieldId, value: a.value })),
+          fields: fields.map(toFieldDto),
+        }));
+      }),
+    );
+
+    res.json({ pending: results.flat() });
+  }),
+);
+
 // GET /api/forms — forms the caller owns, plus forms in departments they
 // belong to (super admins see everything).
 formsRouter.get(
@@ -135,13 +223,13 @@ formsRouter.get(
     const forms = await prisma.form.findMany({
       where: admin ? {} : { OR: [{ ownerId: userId }, { departmentId: { in: departmentIds } }] },
       orderBy: { updatedAt: "desc" },
-      include: { _count: { select: { responses: true } }, department: { select: { name: true } } },
+      include: { _count: { select: { responses: true } }, ...FORM_INCLUDE },
     });
 
     const dtos: FormSummaryDto[] = await Promise.all(
       forms.map(async (f) => {
         const perms = await resolveFormPermissions(userId, f);
-        return toSummaryDto(f, f._count.responses, perms);
+        return toSummaryDto(f, f._count.responses, perms, userId);
       }),
     );
     res.json({ forms: dtos });
@@ -165,9 +253,10 @@ formsRouter.post(
         ownerId: req.userId!,
         departmentId,
       },
-      include: { department: { select: { name: true } } },
+      include: FORM_INCLUDE,
     });
-    res.status(201).json({ form: toSummaryDto(form, 0, { canEdit: true, canDelete: true }) });
+    const dto = await toSummaryDto(form, 0, { canEdit: true, canDelete: true }, req.userId!);
+    res.status(201).json({ form: dto });
   }),
 );
 
@@ -182,8 +271,9 @@ formsRouter.get(
       prisma.response.count({ where: { formId: form.id } }),
     ]);
 
+    const summary = await toSummaryDto(form, responseCount, perms, req.userId!);
     const dto: FormDetailDto = {
-      ...toSummaryDto(form, responseCount, perms),
+      ...summary,
       description: form.description,
       fields: fields.map(toFieldDto),
     };
@@ -191,7 +281,7 @@ formsRouter.get(
   }),
 );
 
-// PATCH /api/forms/:id — update title/description/publish state
+// PATCH /api/forms/:id — update title/description/publish state/approval config
 formsRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
@@ -203,6 +293,21 @@ formsRouter.patch(
       if (!allowed) throw new HttpError(403, "You don't have permission to move this form into that department");
     }
 
+    const nextDepartmentId = body.departmentId !== undefined ? body.departmentId : form.departmentId;
+    const nextRequiresApproval = body.requiresApproval ?? form.requiresApproval;
+    const nextApproverRoleId = body.requiresApproval === false ? null : (body.approverRoleId ?? form.approverRoleId);
+
+    if (nextRequiresApproval) {
+      if (!nextDepartmentId) {
+        throw new HttpError(400, "A form must belong to a department before it can require approval");
+      }
+      if (!nextApproverRoleId) {
+        throw new HttpError(400, "Choose an approver role before enabling approval");
+      }
+      const role = await prisma.role.findUnique({ where: { id: nextApproverRoleId } });
+      if (!role) throw new HttpError(400, "That role no longer exists");
+    }
+
     const updated = await prisma.form.update({
       where: { id: form.id },
       data: {
@@ -210,15 +315,18 @@ formsRouter.patch(
         ...(body.description !== undefined ? { description: body.description } : {}),
         ...(body.status !== undefined ? { status: body.status } : {}),
         ...(body.departmentId !== undefined ? { departmentId: body.departmentId } : {}),
+        ...(body.requiresApproval !== undefined ? { requiresApproval: body.requiresApproval } : {}),
+        approverRoleId: nextRequiresApproval ? nextApproverRoleId : null,
       },
-      include: { department: { select: { name: true } } },
+      include: FORM_INCLUDE,
     });
 
     const [responseCount, perms] = await Promise.all([
       prisma.response.count({ where: { formId: form.id } }),
       resolveFormPermissions(req.userId!, updated),
     ]);
-    res.json({ form: toSummaryDto(updated, responseCount, perms) });
+    const dto = await toSummaryDto(updated, responseCount, perms, req.userId!);
+    res.json({ form: dto });
   }),
 );
 
@@ -288,17 +396,20 @@ formsRouter.get(
           : {}),
       },
       orderBy: { submittedAt: "desc" },
-      include: { answers: true },
+      include: { answers: true, decidedBy: { select: { name: true } } },
       take: 500,
     });
 
-    res.json({
-      responses: responses.map((r) => ({
-        id: r.id,
-        submittedAt: r.submittedAt.toISOString(),
-        answers: r.answers.map((a) => ({ fieldId: a.fieldId, value: a.value })),
-      })),
-    });
+    const dtos: ResponseDto[] = responses.map((r) => ({
+      id: r.id,
+      submittedAt: r.submittedAt.toISOString(),
+      answers: r.answers.map((a) => ({ fieldId: a.fieldId, value: a.value })),
+      status: r.status,
+      decidedByName: r.decidedBy?.name ?? null,
+      decidedAt: r.decidedAt?.toISOString() ?? null,
+      decisionComment: r.decisionComment,
+    }));
+    res.json({ responses: dtos });
   }),
 );
 
@@ -314,10 +425,14 @@ formsRouter.get(
       include: { answers: true },
     });
 
-    const headers = ["Submitted At", ...fields.map((f) => f.label)];
+    const headers = ["Submitted At", ...(form.requiresApproval ? ["Status"] : []), ...fields.map((f) => f.label)];
     const rows = responses.map((r) => {
       const byField = new Map(r.answers.map((a) => [a.fieldId, a.value]));
-      return [r.submittedAt.toISOString(), ...fields.map((f) => byField.get(f.id) ?? "")];
+      return [
+        r.submittedAt.toISOString(),
+        ...(form.requiresApproval ? [r.status ?? ""] : []),
+        ...fields.map((f) => byField.get(f.id) ?? ""),
+      ];
     });
 
     const csv = toCsv(headers, rows);
@@ -338,5 +453,49 @@ formsRouter.delete(
     }
     await prisma.response.delete({ where: { id: response.id } });
     res.status(204).send();
+  }),
+);
+
+// PATCH /api/forms/:id/responses/:responseId/decision — Approve/Reject a
+// pending response. Gated on canDecideOnForm, not the general edit permission.
+formsRouter.patch(
+  "/:id/responses/:responseId/decision",
+  asyncHandler(async (req, res) => {
+    const form = await prisma.form.findUnique({ where: { id: req.params.id }, include: FORM_INCLUDE });
+    if (!form) throw new HttpError(404, "Form not found");
+
+    const perms = await resolveFormPermissions(req.userId!, form);
+    if (!perms.canView) throw new HttpError(404, "Form not found");
+    if (!form.requiresApproval) throw new HttpError(400, "This form doesn't use an approval workflow");
+
+    const allowed = await canDecideOnForm(req.userId!, form);
+    if (!allowed) throw new HttpError(403, "You don't have permission to decide on this form's submissions");
+
+    const response = await prisma.response.findUnique({ where: { id: req.params.responseId } });
+    if (!response || response.formId !== form.id) throw new HttpError(404, "Response not found");
+    if (response.status !== "PENDING") throw new HttpError(409, "This response has already been decided");
+
+    const body = decisionSchema.parse(req.body);
+    const updated = await prisma.response.update({
+      where: { id: response.id },
+      data: {
+        status: body.decision,
+        decidedByUserId: req.userId!,
+        decidedAt: new Date(),
+        decisionComment: body.comment ?? null,
+      },
+      include: { answers: true, decidedBy: { select: { name: true } } },
+    });
+
+    const dto: ResponseDto = {
+      id: updated.id,
+      submittedAt: updated.submittedAt.toISOString(),
+      answers: updated.answers.map((a) => ({ fieldId: a.fieldId, value: a.value })),
+      status: updated.status,
+      decidedByName: updated.decidedBy?.name ?? null,
+      decidedAt: updated.decidedAt?.toISOString() ?? null,
+      decisionComment: updated.decisionComment,
+    };
+    res.json({ response: dto });
   }),
 );

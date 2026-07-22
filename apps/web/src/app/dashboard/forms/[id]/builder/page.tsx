@@ -11,6 +11,7 @@ import { useFormBuilder } from "@/hooks/useFormBuilder";
 import { FieldPalette } from "@/components/builder/FieldPalette";
 import { Canvas } from "@/components/builder/Canvas";
 import { FieldSettingsPanel } from "@/components/builder/FieldSettingsPanel";
+import { ApprovalSettings } from "@/components/builder/ApprovalSettings";
 import { PreviewModal } from "@/components/builder/PreviewModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -140,7 +141,8 @@ function BuilderContent() {
               onDropNewField={addField}
             />
           </div>
-          <div className="order-3">
+          <div className="order-3 space-y-4">
+            <ApprovalSettings form={form} onUpdate={updateFormMetaImmediate} />
             <FieldSettingsPanel
               field={selectedField}
               onChange={(patch) => selectedField && updateField(selectedField.id, patch)}

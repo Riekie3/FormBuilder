@@ -38,6 +38,7 @@ publicRouter.get(
       title: form.title,
       description: form.description,
       fields: fields.map(toFieldDto),
+      requiresApproval: form.requiresApproval,
     };
     res.json({ form: dto });
   }),
@@ -70,6 +71,7 @@ publicRouter.post(
       data: {
         formId: form.id,
         ipHash,
+        status: form.requiresApproval ? "PENDING" : null,
         answers: { create: validAnswers.map((a) => ({ fieldId: a.fieldId, value: a.value })) },
       },
     });

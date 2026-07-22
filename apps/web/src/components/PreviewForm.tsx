@@ -10,12 +10,13 @@ interface Props {
   fields: FieldDto[];
   mode?: "preview" | "live";
   onSubmit?: (answers: Record<string, string>) => Promise<void>;
+  requiresApproval?: boolean;
 }
 
 // Renders a fillable form. In "preview" mode (used by the builder) submissions
 // are not persisted; in "live" mode (the public /f/[slug] page) onSubmit posts
 // the answers to the API.
-export function PreviewForm({ title, description, fields, mode = "live", onSubmit }: Props) {
+export function PreviewForm({ title, description, fields, mode = "live", onSubmit, requiresApproval = false }: Props) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -59,7 +60,11 @@ export function PreviewForm({ title, description, fields, mode = "live", onSubmi
     return (
       <div className="card p-10 text-center">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Thanks!</h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Your response has been recorded.</p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {requiresApproval
+            ? "Your response has been recorded and is pending review."
+            : "Your response has been recorded."}
+        </p>
       </div>
     );
   }

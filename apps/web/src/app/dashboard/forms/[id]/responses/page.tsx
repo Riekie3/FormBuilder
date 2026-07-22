@@ -4,27 +4,12 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Download, Search, Trash2 } from "lucide-react";
-import type { FieldDto } from "@sfb/shared";
 import { AuthGate } from "@/components/AuthGate";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useResponses } from "@/hooks/useResponses";
-
-// Answers store the option's stable `value`, not its display label — map back
-// to the label here so the table reads naturally without changing what's stored.
-function displayValue(field: FieldDto, raw: string | undefined): string {
-  if (!raw) return "";
-  const options = field.config.options;
-  if (!options) return raw;
-  if (field.type === "CHECKBOX") {
-    const selected = new Set(raw.split(","));
-    return options
-      .filter((o) => selected.has(o.value))
-      .map((o) => o.label)
-      .join(", ");
-  }
-  return options.find((o) => o.value === raw)?.label ?? raw;
-}
+import { displayAnswerValue } from "@/lib/displayAnswerValue";
+import { StatusBadge } from "@/components/StatusBadge";
 
 function ResponsesContent() {
   const params = useParams<{ id: string }>();
@@ -85,6 +70,7 @@ function ResponsesContent() {
             <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400 dark:border-slate-800">
               <tr>
                 <th className="px-4 py-3 font-medium">Submitted</th>
+                {form?.requiresApproval && <th className="px-4 py-3 font-medium">Status</th>}
                 {orderedFields.map((field) => (
                   <th key={field.id} className="px-4 py-3 font-medium">
                     {field.label}
@@ -101,9 +87,12 @@ function ResponsesContent() {
                     <td className="whitespace-nowrap px-4 py-3 text-slate-500 dark:text-slate-400">
                       {new Date(response.submittedAt).toLocaleString()}
                     </td>
+                    {form?.requiresApproval && (
+                      <td className="px-4 py-3">{response.status && <StatusBadge status={response.status} />}</td>
+                    )}
                     {orderedFields.map((field) => (
                       <td key={field.id} className="max-w-xs truncate px-4 py-3 text-slate-700 dark:text-slate-300">
-                        {displayValue(field, byField.get(field.id))}
+                        {displayAnswerValue(field, byField.get(field.id))}
                       </td>
                     ))}
                     <td className="px-4 py-3 text-right">

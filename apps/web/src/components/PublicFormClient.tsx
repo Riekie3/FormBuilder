@@ -20,6 +20,13 @@ export function PublicFormClient({ slug, form }: { slug: string; form: PublicFor
   }
 
   return (
-    <PreviewForm title={form.title} description={form.description} fields={form.fields} mode="live" onSubmit={handleSubmit} />
+    <PreviewForm
+      title={form.title}
+      description={form.description}
+      fields={form.fields}
+      mode="live"
+      onSubmit={handleSubmit}
+      requiresApproval={form.requiresApproval}
+    />
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutGrid, LogOut, ShieldCheck } from "lucide-react";
+import { ClipboardCheck, LayoutGrid, LogOut, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -17,6 +17,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             Smart Form Builder
           </Link>
           <div className="flex items-center gap-3">
+            <Link
+              href="/dashboard/approvals"
+              className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              <ClipboardCheck size={14} /> Approvals
+            </Link>
             {user?.isSuperAdmin && (
               <Link
                 href="/dashboard/admin"

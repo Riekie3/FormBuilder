@@ -1,6 +1,7 @@
-// Smart Form Builder schema — Phase 1 (core) + Phase 2 (roles/departments).
-// Remaining phases sketched at the bottom as comments so the eventual
-// migration path is clear without shipping half-built models now.
+// Smart Form Builder schema — Phase 1 (core), Phase 2 (roles/departments),
+// Phase 3 (approval workflow). Remaining phases sketched at the bottom as
+// comments so the eventual migration path is clear without shipping
+// half-built models now.
 
 generator client {
   provider = "prisma-client-js"
@@ -28,6 +29,15 @@ enum FormStatus {
   PUBLISHED
 }
 
+// Only meaningful when the response's form has requiresApproval = true;
+// forms without approval leave Response.status null (unchanged Phase 1
+// behavior — a submission is immediately final).
+enum ResponseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id            String         @id @default(cuid())
   name          String
@@ -42,6 +52,7 @@ model User {
   forms         Form[]
   refreshTokens RefreshToken[]
   memberships   Membership[]
+  decisions     Response[]     @relation("ResponseDecidedBy")
 }
 
 model Department {
@@ -63,6 +74,8 @@ model Role {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   memberships Membership[]
+  // Forms that use this role as their single approval step (Phase 3).
+  approvesForForms Form[]  @relation("FormApproverRole")
 }
 
 // A user's role within one department. A user can hold several of these
@@ -107,6 +120,12 @@ model Form {
   // per each member's role permissions.
   departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  // Opt-in, single-level approval (Phase 3). Only settable when departmentId
+  // is set — approval needs someone other than the submitter to review, and
+  // approverRoleId is resolved against Memberships in this form's department.
+  requiresApproval Boolean  @default(false)
+  approverRoleId   String?
+  approverRole     Role?    @relation("FormApproverRole", fields: [approverRoleId], references: [id], onDelete: SetNull)
   fields      Field[]
   responses   Response[]
   createdAt   DateTime    @default(now())
@@ -114,6 +133,7 @@ model Form {
 
   @@index([ownerId])
   @@index([departmentId])
+  @@index([approverRoleId])
 }
 
 model Field {
@@ -133,14 +153,21 @@ model Field {
 }
 
 model Response {
-  id          String   @id @default(cuid())
+  id          String         @id @default(cuid())
   formId      String
-  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  form        Form           @relation(fields: [formId], references: [id], onDelete: Cascade)
   answers     Answer[]
-  submittedAt DateTime @default(now())
+  submittedAt DateTime       @default(now())
   ipHash      String?
+  // Null unless the form has requiresApproval — see ResponseStatus above.
+  status           ResponseStatus?
+  decidedByUserId  String?
+  decidedBy        User?           @relation("ResponseDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  decidedAt        DateTime?
+  decisionComment  String?
 
   @@index([formId])
+  @@index([status])
 }
 
 model Answer {
@@ -167,8 +194,13 @@ model Template {
 // ---------------------------------------------------------------------------
 // Later phases (sketch only — not migrated):
 //
-// model ApprovalFlow  { id, formId, sequential }                    // Phase 3
-// model ApprovalStep  { id, flowId, order, approverRoleId|approverUserId }  // Phase 3
+// Phase 3 ships single-level approval directly on Form/Response (see above).
+// A future multi-level pass would replace requiresApproval/approverRoleId
+// with something like:
+//   model ApprovalFlow  { id, formId, sequential }
+//   model ApprovalStep  { id, flowId, order, approverRoleId }
+//   model ApprovalDecision { id, responseId, stepId, decidedByUserId, status, comment }
+//
 // model Page          { id, formId, order, title }                 // Phase 4 — multi-page forms
 // model Attachment    { id, answerId, url, mimeType, size }         // Phase 6 — file/image upload fields
 // model Payment       { id, responseId, provider, amount, status }  // Phase 6 — payment field

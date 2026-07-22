@@ -51,6 +51,12 @@ async function main() {
     create: { name: "Manager", canView: true, canCreate: true, canEdit: true, canDelete: true },
   });
 
+  const approverRole = await prisma.role.upsert({
+    where: { name: "Approver" },
+    update: {},
+    create: { name: "Approver", canView: true, canCreate: false, canEdit: false, canDelete: false },
+  });
+
   await prisma.membership.upsert({
     where: {
       userId_departmentId_roleId: { userId: colleague.id, departmentId: operations.id, roleId: editorRole.id },
@@ -59,9 +65,23 @@ async function main() {
     create: { userId: colleague.id, departmentId: operations.id, roleId: editorRole.id },
   });
 
+  // Colleague holds two roles in the same department at once — demonstrates
+  // the multi-role-per-department model, and lets them both edit and approve
+  // the seeded Contact Us form below.
+  await prisma.membership.upsert({
+    where: {
+      userId_departmentId_roleId: { userId: colleague.id, departmentId: operations.id, roleId: approverRole.id },
+    },
+    update: {},
+    create: { userId: colleague.id, departmentId: operations.id, roleId: approverRole.id },
+  });
+
   const existingForm = await prisma.form.findFirst({ where: { ownerId: user.id, slug: "contact-us-demo" } });
-  if (existingForm && !existingForm.departmentId) {
-    await prisma.form.update({ where: { id: existingForm.id }, data: { departmentId: operations.id } });
+  if (existingForm && (!existingForm.departmentId || !existingForm.requiresApproval)) {
+    await prisma.form.update({
+      where: { id: existingForm.id },
+      data: { departmentId: operations.id, requiresApproval: true, approverRoleId: approverRole.id },
+    });
   }
   if (!existingForm) {
     await prisma.form.create({
@@ -72,6 +92,8 @@ async function main() {
         status: "PUBLISHED",
         ownerId: user.id,
         departmentId: operations.id,
+        requiresApproval: true,
+        approverRoleId: approverRole.id,
         fields: {
           create: [
             { type: "TEXT", label: "Full Name", required: true, order: 0, config: { placeholder: "Jane Doe" } },
@@ -115,7 +137,8 @@ async function main() {
 
   console.log("Seed complete.");
   console.log("Super admin login: demo@smartformbuilder.dev / Demo1234!");
-  console.log("Editor (Operations dept) login: colleague@smartformbuilder.dev / Demo1234!");
+  console.log("Editor + Approver (Operations dept) login: colleague@smartformbuilder.dev / Demo1234!");
+  console.log('Contact Us requires approval — submit it publicly, then approve/reject from "Approvals" as colleague.');
 }
 
 main()

@@ -52,6 +52,14 @@ export interface FormSummaryDto {
   // Edit/Delete for forms granted via a view-only role.
   canEdit: boolean;
   canDelete: boolean;
+  // Opt-in, single-level approval (Phase 3) — only settable when the form
+  // has a department, since the approver role is resolved against it.
+  requiresApproval: boolean;
+  approverRoleId: string | null;
+  approverRoleName: string | null;
+  // Can the *current* user decide on this form's pending responses?
+  canApprove: boolean;
+  pendingCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +74,7 @@ export interface PublicFormDto {
   title: string;
   description: string | null;
   fields: FieldDto[];
+  requiresApproval: boolean;
 }
 
 export interface AnswerDto {
@@ -73,10 +82,25 @@ export interface AnswerDto {
   value: string;
 }
 
+export type ResponseStatus = "PENDING" | "APPROVED" | "REJECTED";
+
 export interface ResponseDto {
   id: string;
   submittedAt: string;
   answers: AnswerDto[];
+  status: ResponseStatus | null;
+  decidedByName: string | null;
+  decidedAt: string | null;
+  decisionComment: string | null;
+}
+
+export interface PendingApprovalDto {
+  responseId: string;
+  formId: string;
+  formTitle: string;
+  submittedAt: string;
+  answers: AnswerDto[];
+  fields: FieldDto[];
 }
 
 export interface AuthUserDto {

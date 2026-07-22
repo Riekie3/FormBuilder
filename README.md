@@ -4,9 +4,9 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-2 of 8** on the roadmap: core form building/submission,
-plus department-based roles and permissions. See [Roadmap](#roadmap) for
-what's planned in each later phase.
+This is **Phases 1-3 of 8** on the roadmap: core form building/submission,
+department-based roles and permissions, and a single-level approval workflow.
+See [Roadmap](#roadmap) for what's planned in each later phase.
 
 ## Stack
 
@@ -58,11 +58,13 @@ npm run dev:web
 Visit `http://localhost:3000`. Two seeded logins (both password `Demo1234!`):
 
 - `demo@smartformbuilder.dev` — super admin, sees `/dashboard/admin`
-- `colleague@smartformbuilder.dev` — regular user with an Editor role
-  (view/create/edit, no delete) in the seeded "Operations" department
+- `colleague@smartformbuilder.dev` — regular user holding two roles in the
+  seeded "Operations" department: Editor (view/create/edit, no delete) and
+  Approver
 
-Also seeds one published "Contact Us" form (in Operations) and a "Contact
-Form" template.
+Also seeds one published "Contact Us" form (in Operations, requires approval
+— submit it at `/f/contact-us-demo`, then approve/reject it from
+`/dashboard/approvals` as `colleague@...`) and a "Contact Form" template.
 
 ## Tests
 
@@ -73,9 +75,13 @@ npm run test:api
 
 Covers the auth flow (register/login/refresh rotation/me), form CRUD,
 ownership isolation, bulk field save with id-preserving upserts, publish/public
-visibility, the public submission → response → CSV export path, and
+visibility, the public submission → response → CSV export path,
 department-wide permission boundaries (admin-route gating, view/edit/delete
-enforcement, create-permission checks).
+enforcement, create-permission checks), and the approval workflow (opt-in
+validation, submission status, decision authorization, the pending-approvals
+aggregation). The auth/submission rate limiters are skipped under
+`NODE_ENV=test` so test suites that legitimately register many accounts don't
+throttle themselves.
 
 ## Project structure
 
@@ -163,20 +169,41 @@ access to every form in that department, not per-form grants), and a user
   delete) in a seeded "Operations" department, which the seeded "Contact Us"
   form belongs to — log in as both to see the permission boundary firsthand
 
-### Phase 3 — Approval Workflows ⬜ not started
+### Phase 3 — Approval Workflows ✅ done
 
-Depends on Phase 2. Matches SOW 2.4, which treats this as core scope
-alongside form creation, not an optional add-on.
+Matches SOW 2.4. Resolved with the client: **single-level** approval for v1
+(multi-level chains deferred), **opt-in per form** (a toggle in form
+settings — existing forms are unaffected), and approvers assigned **by
+role** (consistent with Phase 2's department-wide model).
 
-- Approval flow builder: attach one or more steps to a form, assign an
-  approver (role or specific user) per step, sequential or parallel
-- Submission status: Pending / Approved / Rejected
-- Approver dashboard: items awaiting my decision, Approve / Reject / Request
-  changes + comment
-- Multi-level chains (SOW says "if required" — confirm whether v1 needs this
-  or ships single-level first)
-- Email notifications: approver on new item, submitter on decision
-- Audit trail of who decided what, and when
+- `Form.requiresApproval` + `Form.approverRoleId`: opt-in toggle, only
+  settable once the form has a department (the approver role is resolved
+  against Memberships in it)
+- `Response.status` (Pending/Approved/Rejected, null when approval isn't
+  used) + `decidedByUserId`/`decidedAt`/`decisionComment` for the audit trail
+- Public submissions land as Pending automatically when the form requires
+  approval; the thank-you screen reflects it ("...is pending review")
+- Decision endpoint (`PATCH .../responses/:id/decision`): gated on
+  `canDecideOnForm` — the form owner and super admins can always decide;
+  otherwise the caller must hold the form's designated approver role in its
+  department. A response can only be decided once (409 on replay)
+- Approver dashboard at `/dashboard/approvals`: every Pending response across
+  every form the caller can decide on, with the submitted answers, an
+  optional comment, and Approve/Reject
+- Dashboard and responses table both surface status (a "N pending" badge on
+  form cards, a Status column in the responses table)
+- 12 new API tests (31 total) covering opt-in validation, status assignment,
+  decision authorization (approver/owner/no-access/wrong-role), double-decision
+  rejection, and the pending-approvals aggregation
+- Seed data: `colleague@smartformbuilder.dev` now holds both Editor and
+  Approver roles in Operations (demonstrating multi-role-per-department); the
+  seeded "Contact Us" form requires approval
+
+**Deferred, not built:** multi-level/sequential approval chains, and real
+email notifications (approver on new item, submitter on decision) — there's
+no SMTP integration anywhere yet, and standing one up is its own task better
+suited to when Phase 6 adds email templates. The in-app Approvals dashboard
+covers the practical "what's waiting on me" need in the meantime.
 
 ### Phase 4 — Builder power features ⬜ not started
 

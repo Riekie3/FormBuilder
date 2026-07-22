@@ -157,7 +157,14 @@ export function useFormBuilder(formId: string) {
   }, []);
 
   const updateFormMetaImmediate = useCallback(
-    async (patch: { title?: string; description?: string | null; status?: "DRAFT" | "PUBLISHED" }) => {
+    async (patch: {
+      title?: string;
+      description?: string | null;
+      status?: "DRAFT" | "PUBLISHED";
+      departmentId?: string | null;
+      requiresApproval?: boolean;
+      approverRoleId?: string | null;
+    }) => {
       const res = await authFetch(`/api/forms/${formId}`, { method: "PATCH", body: JSON.stringify(patch) });
       if (res.ok) {
         const body = await res.json();
