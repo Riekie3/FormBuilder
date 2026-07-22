@@ -1,0 +1,129 @@
+// Smart Form Builder — Phase 1 schema
+// Phase 2 additions (not implemented yet): Page, Attachment, Payment, Role,
+// Permission, Notification, ApiKey. Sketched at the bottom as comments so the
+// eventual migration path is clear without shipping half-built models now.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum FieldType {
+  TEXT
+  PARAGRAPH
+  EMAIL
+  NUMBER
+  PHONE
+  DATE
+  DROPDOWN
+  RADIO
+  CHECKBOX
+}
+
+enum FormStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  forms         Form[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Form {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  slug        String     @unique
+  status      FormStatus @default(DRAFT)
+  ownerId     String
+  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  fields      Field[]
+  responses   Response[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([ownerId])
+}
+
+model Field {
+  id        String    @id @default(cuid())
+  formId    String
+  form      Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
+  type      FieldType
+  label     String
+  required  Boolean   @default(false)
+  order     Int
+  config    Json      @default("{}")
+  answers   Answer[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([formId])
+}
+
+model Response {
+  id          String   @id @default(cuid())
+  formId      String
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  answers     Answer[]
+  submittedAt DateTime @default(now())
+  ipHash      String?
+
+  @@index([formId])
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  responseId String
+  response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  fieldId    String
+  field      Field    @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  value      String
+
+  @@index([responseId])
+  @@index([fieldId])
+}
+
+model Template {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  category    String
+  fields      Json
+  createdAt   DateTime  @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 (sketch only — not migrated):
+//
+// model Page          { id, formId, order, title }                 // multi-page forms
+// model Attachment    { id, answerId, url, mimeType, size }         // file/image upload fields
+// model Payment       { id, responseId, provider, amount, status }  // payment field
+// model Role          { id, name }                                 // admin panel RBAC
+// model Permission    { id, roleId, action, resource }              // admin panel RBAC
+// model Notification  { id, userId, type, payload, readAt }         // in-app notifications
+// model ApiKey        { id, userId, keyHash, label, lastUsedAt }    // public API access
+// ---------------------------------------------------------------------------
