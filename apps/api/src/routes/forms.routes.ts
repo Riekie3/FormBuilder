@@ -115,6 +115,12 @@ const fieldOptionSchema = z.object({
   value: z.string().min(1).max(200),
 });
 
+const fieldConditionSchema = z.object({
+  fieldId: z.string(),
+  operator: z.enum(["equals", "not_equals", "contains"]),
+  value: z.string().max(500),
+});
+
 const fieldConfigSchema = z.object({
   placeholder: z.string().max(200).optional(),
   helpText: z.string().max(500).optional(),
@@ -127,12 +133,15 @@ const fieldConfigSchema = z.object({
   defaultValue: z.string().max(500).optional(),
   formula: z.string().max(1000).optional(),
   precision: z.number().int().min(0).max(6).optional(),
+  conditions: z.array(fieldConditionSchema).max(5).optional(),
 });
 
 const fieldInputSchema = z.object({
   id: z.string().optional(),
   type: z.enum(FIELD_TYPES),
-  label: z.string().trim().min(1).max(200),
+  // Not min(1): a PAGE_BREAK's label doubles as an optional next-page title,
+  // so an empty label is a valid, deliberate choice for that type.
+  label: z.string().trim().max(200),
   required: z.boolean(),
   order: z.number().int().min(0),
   config: fieldConfigSchema.default({}),

@@ -7,6 +7,7 @@ import {
   Circle,
   Code2,
   EyeOff,
+  FileStack,
   Hash,
   Heading as HeadingIcon,
   Mail,
@@ -39,4 +40,5 @@ export const FIELD_TYPE_ICONS: Record<FieldType, LucideIcon> = {
   HIDDEN: EyeOff,
   RICH_TEXT: AlignLeft,
   CALCULATION: Calculator,
+  PAGE_BREAK: FileStack,
 };

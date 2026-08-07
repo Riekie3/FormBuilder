@@ -20,6 +20,7 @@ export const FIELD_TYPES = [
   "HIDDEN",
   "RICH_TEXT",
   "CALCULATION",
+  "PAGE_BREAK",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -42,18 +43,62 @@ export interface FieldConfig {
   defaultValue?: string; // HIDDEN — the constant value submitted with the form
   formula?: string; // CALCULATION — e.g. "{fieldId1} + {fieldId2} * 2"
   precision?: number; // CALCULATION — decimal places to round to, default 2
+  // Shown only when ALL conditions evaluate true against the visitor's
+  // current answers. Absent/empty = always shown. Not offered on PAGE_BREAK
+  // fields (they're a structural marker, not visitor-facing content).
+  conditions?: FieldCondition[];
 }
 
-// Divider/Heading/HTML Block/Rich Text are content, not input — they never
-// collect a value and can never be marked required.
+export interface FieldCondition {
+  fieldId: string; // the other field whose answer is checked
+  operator: "equals" | "not_equals" | "contains";
+  value: string;
+}
+
+// Divider/Heading/HTML Block/Rich Text/Page Break are content or structure,
+// not input — they never collect a value and can never be marked required.
 export function isLayoutField(type: FieldType): boolean {
-  return type === "DIVIDER" || type === "HEADING" || type === "HTML_BLOCK" || type === "RICH_TEXT";
+  return (
+    type === "DIVIDER" ||
+    type === "HEADING" ||
+    type === "HTML_BLOCK" ||
+    type === "RICH_TEXT" ||
+    type === "PAGE_BREAK"
+  );
 }
 
 // Calculation derives its value from other fields — the visitor never types
 // into it directly, so it's exempt from required-field validation too.
 export function isComputedField(type: FieldType): boolean {
   return type === "CALCULATION";
+}
+
+// A PAGE_BREAK field never renders as visitor-facing content — it only marks
+// where one page of a multi-page form ends and the next begins.
+export function isPageBreak(type: FieldType): boolean {
+  return type === "PAGE_BREAK";
+}
+
+// Evaluates a field's conditional-visibility rules against the visitor's
+// current answers (keyed by fieldId). Used identically by the client (to
+// decide what to render) and the server (to decide what's actually required),
+// so the two can never disagree about what was "shown".
+export function isFieldVisible(field: Pick<FieldDto, "config">, values: Record<string, string>): boolean {
+  const conditions = field.config.conditions;
+  if (!conditions || conditions.length === 0) return true;
+  return conditions.every((c) => {
+    const actual = values[c.fieldId] ?? "";
+    switch (c.operator) {
+      case "equals":
+        return actual === c.value;
+      case "not_equals":
+        return actual !== c.value;
+      case "contains":
+        return actual.includes(c.value);
+      default:
+        return true;
+    }
+  });
 }
 
 export interface FieldDto {
@@ -196,6 +241,7 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   HIDDEN: "Hidden Field",
   RICH_TEXT: "Rich Text",
   CALCULATION: "Calculation",
+  PAGE_BREAK: "Page Break",
 };
 
 export function fieldSupportsOptions(type: FieldType): boolean {

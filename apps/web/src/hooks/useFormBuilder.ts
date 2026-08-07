@@ -109,7 +109,10 @@ export function useFormBuilder(formId: string) {
       {
         id: tempId(),
         type,
-        label: FIELD_TYPE_LABELS[type],
+        // A page break's label is an optional *next page* title, not
+        // visitor-facing field content, so it starts blank rather than
+        // pre-filled with "Page Break".
+        label: type === "PAGE_BREAK" ? "" : FIELD_TYPE_LABELS[type],
         required: false,
         order: prev.length,
         config: defaultConfigFor(type),

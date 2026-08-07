@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { asyncHandler, HttpError } from "../middleware/errorHandler";
 import { publicSubmissionRateLimit } from "../middleware/rateLimit";
 import { sha256Hex } from "../lib/hash";
-import { isComputedField, isLayoutField } from "@sfb/shared";
+import { isComputedField, isFieldVisible, isLayoutField } from "@sfb/shared";
 import type { FieldDto, PublicFormDto } from "@sfb/shared";
 import type { Field as PrismaField } from "@prisma/client";
 
@@ -58,9 +58,14 @@ publicRouter.post(
     const fields = await prisma.field.findMany({ where: { formId: form.id } });
     const fieldById = new Map(fields.map((f) => [f.id, f]));
     const valueByFieldId = new Map(body.answers.map((a) => [a.fieldId, a.value]));
+    const answersByFieldId = Object.fromEntries(valueByFieldId);
 
     for (const field of fields) {
       if (isLayoutField(field.type) || isComputedField(field.type)) continue;
+      // A condition that hid this field from the visitor also excuses it
+      // from required-ness — the server must agree with what the client
+      // actually showed, evaluated against the same submitted answers.
+      if (!isFieldVisible(toFieldDto(field), answersByFieldId)) continue;
       if (field.required && !valueByFieldId.get(field.id)?.trim()) {
         throw new HttpError(400, `"${field.label}" is required`);
       }

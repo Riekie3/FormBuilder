@@ -31,6 +31,7 @@ enum FieldType {
   HIDDEN
   RICH_TEXT
   CALCULATION
+  PAGE_BREAK
 }
 
 enum FormStatus {
@@ -213,7 +214,10 @@ model Template {
 //   model ApprovalStep  { id, flowId, order, approverRoleId }
 //   model ApprovalDecision { id, responseId, stepId, decidedByUserId, status, comment }
 //
-// model Page          { id, formId, order, title }                 // Phase 4 — multi-page forms
+// Multi-page forms (Phase 4 continuation) did NOT need a Page model — a
+// PAGE_BREAK field (see FieldType above) already marks where a new page
+// starts, reusing the existing field-ordering/config machinery instead of
+// introducing a second way to represent form structure.
 // model Attachment    { id, answerId, url, mimeType, size }         // Phase 6 — file/image upload fields
 // model Payment       { id, responseId, provider, amount, status }  // Phase 6 — payment field
 // model Notification  { id, userId, type, payload, readAt }         // in-app notifications

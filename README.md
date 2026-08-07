@@ -4,11 +4,12 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a/4b of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a single-level
-approval workflow, and 9 additional field types (Address, Rating, Signature,
+approval workflow, 9 additional field types (Address, Rating, Signature,
 Divider, Heading, HTML Block, Hidden, Rich Text, Calculation) plus product
-code naming. See [Roadmap](#roadmap) for what's planned in each later phase.
+code naming, and now multi-page forms with conditional field logic. See
+[Roadmap](#roadmap) for what's planned in each later phase.
 
 ## Stack
 
@@ -253,6 +254,47 @@ covers the practical "what's waiting on me" need in the meantime.
   Rich Text markdown renders correctly, the responses table and CSV export
   both display every new field type correctly, then cleaned up the test form
 
+### Phase 4b — Multi-page forms & conditional logic ✅ done
+
+- **PAGE_BREAK field type**, not a separate `Page` model: it's a layout field
+  (like Divider/Heading) that marks where one page ends and the next begins,
+  reusing the existing field-ordering/config machinery instead of introducing
+  a second way to represent form structure. Its `label` doubles as an
+  optional title for the page that follows
+- `apps/web/src/lib/formPages.ts` (`splitIntoPages`): splits the flat field
+  list into pages at each PAGE_BREAK. A form with none renders exactly as it
+  did before multi-page support existed — zero migration burden on existing
+  forms (verified against the seeded "Contact Us" form)
+- `PreviewForm.tsx` renders one page at a time with a progress bar ("Page X
+  of Y" + the upcoming page's title), Back/Next/Submit controls, and
+  per-page required-field validation — Enter/submit on a non-final page
+  advances instead of submitting, matching the Typeform/Jotform-style flow
+- **Conditional field logic** (SOW 2.2/2.3): a field's `config.conditions`
+  (a `{ fieldId, operator, value }` list — `equals` / `not_equals` /
+  `contains`, ANY-fields-must-all-match for this pass) controls whether it's
+  shown at all. `isFieldVisible()` in `packages/shared` is the single
+  implementation both the client (what to render) and the server (what's
+  actually required) evaluate against the same submitted answers, so the two
+  can never disagree about what the visitor saw
+- Server-side required-validation in `public.routes.ts` now skips any field
+  a condition hid — verified directly against the public submission
+  endpoint: a required field made invisible by its condition is correctly
+  exempted, and a required field a condition *does* show is still enforced
+  (both the positive and negative case were tested, not just the happy path)
+- Builder UI (`FieldSettingsPanel.tsx`): a "Only show when a condition is
+  met" checkbox reveals a trigger-field picker (restricted to earlier,
+  value-bearing fields — a field can't depend on an answer the visitor
+  hasn't given yet), an operator picker, and a value input that becomes a
+  dropdown of the trigger field's own options when it has any (Dropdown/
+  Radio/Checkbox), else free text
+- Verified end-to-end: a 3-page test form (page break → conditional Email/
+  Phone fields keyed off a "Preferred Contact Method" dropdown → final
+  notes page) built via the API, walked through in the browser confirming
+  the progress bar, page titles, Back preserving entered values, and the
+  conditional field swap; submitted publicly in both branches; confirmed
+  the responses table, CSV export, and the builder's settings panel all
+  round-trip the stored condition correctly; cleaned up afterward
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
@@ -260,8 +302,7 @@ covers the practical "what's waiting on me" need in the meantime.
   prefix-based autocomplete. Needs a clarified functional spec before
   estimating — open questions: is the dataset reusable across forms or
   scoped to one field, who can edit it, what happens with ambiguous prefixes
-- Multi-page forms, progress bar, nested sections
-- Conditional logic — single/multiple selection triggers (SOW 2.2/2.3)
+- Nested sections within a page
 - Undo/redo, multi-select, copy/paste, custom validation rules
 - **Builder UX polish** (from Jotform's open-source `dnd-builder` library):
   field resizing, alignment guides, and distinct builder/preview/presentation/
@@ -279,7 +320,8 @@ covers the practical "what's waiting on me" need in the meantime.
   estimating (translation storage model, locale switcher UX, whether
   submissions record which locale was used)
 
-(The builder UX polish and the four items above it are sourced from a
+(The builder UX polish and the four items below it — one-question-per-page,
+answer piping, URL pre-fill, save-and-resume — are sourced from a
 competitive review of Jotform's public features page and their open-source
 `dnd-builder` library — not from their closed-source product code, which
 isn't public. Deliberately not chasing from that same review: 200+ native

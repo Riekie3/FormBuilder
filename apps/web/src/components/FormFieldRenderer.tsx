@@ -90,6 +90,18 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled }: P
       // Carries a fixed value along with the submission without being shown.
       return null;
 
+    case "PAGE_BREAK":
+      // Only ever reached from the builder's flat canvas list — the actual
+      // paginated renderers (PreviewForm) consume this as a page separator
+      // and never include it in a page's own field list.
+      return (
+        <div className="flex items-center gap-2 py-1 text-xs font-semibold uppercase tracking-wide text-brand-500">
+          <span className="h-px flex-1 bg-brand-200 dark:bg-brand-900" />
+          Page break{field.label ? ` — ${field.label}` : ""}
+          <span className="h-px flex-1 bg-brand-200 dark:bg-brand-900" />
+        </div>
+      );
+
     // --- Interactive fields ---
     case "PARAGRAPH":
       return wrap(
