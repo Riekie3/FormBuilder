@@ -20,6 +20,10 @@ function defaultConfigFor(type: FieldType) {
     ];
     return { options };
   }
+  if (type === "RATING") return { maxRating: 5 };
+  if (type === "CALCULATION") return { formula: "", precision: 2 };
+  if (type === "HTML_BLOCK") return { htmlContent: "" };
+  if (type === "RICH_TEXT") return { richText: "" };
   return {};
 }
 
@@ -164,6 +168,7 @@ export function useFormBuilder(formId: string) {
       departmentId?: string | null;
       requiresApproval?: boolean;
       approverRoleId?: string | null;
+      productCode?: string | null;
     }) => {
       const res = await authFetch(`/api/forms/${formId}`, { method: "PATCH", body: JSON.stringify(patch) });
       if (res.ok) {

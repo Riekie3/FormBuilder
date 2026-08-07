@@ -1,6 +1,9 @@
 "use client";
 
+import DOMPurify from "dompurify";
 import type { FieldDto } from "@sfb/shared";
+import { renderSafeMarkdown } from "@/lib/safeMarkdown";
+import { SignaturePad } from "@/components/SignaturePad";
 
 interface Props {
   field: FieldDto;
@@ -8,6 +11,23 @@ interface Props {
   onChange: (value: string) => void;
   error?: string;
   disabled?: boolean;
+}
+
+interface AddressValue {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+}
+
+function parseAddress(raw: string): AddressValue {
+  if (!raw) return { street: "", city: "", state: "", zip: "", country: "" };
+  try {
+    return { street: "", city: "", state: "", zip: "", country: "", ...JSON.parse(raw) };
+  } catch {
+    return { street: "", city: "", state: "", zip: "", country: "" };
+  }
 }
 
 // Shared between the builder's live preview and the public form renderer so
@@ -36,6 +56,41 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled }: P
   );
 
   switch (field.type) {
+    // --- Pure layout/content blocks — no input, no label/required semantics ---
+    case "DIVIDER":
+      return <hr className="border-slate-200 dark:border-slate-800" />;
+
+    case "HEADING":
+      return (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{field.label}</h3>
+          {helpText}
+        </div>
+      );
+
+    case "HTML_BLOCK":
+      return (
+        <div
+          className="text-sm text-slate-700 dark:text-slate-300"
+          // Sanitized at render time — field.config.htmlContent is untrusted
+          // (authored by whoever built the form) until DOMPurify has run.
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(field.config.htmlContent ?? "") }}
+        />
+      );
+
+    case "RICH_TEXT":
+      return (
+        <div
+          className="text-sm text-slate-700 dark:text-slate-300"
+          dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(field.config.richText ?? "") }}
+        />
+      );
+
+    case "HIDDEN":
+      // Carries a fixed value along with the submission without being shown.
+      return null;
+
+    // --- Interactive fields ---
     case "PARAGRAPH":
       return wrap(
         <textarea
@@ -156,6 +211,85 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled }: P
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
         />,
+      );
+
+    case "ADDRESS": {
+      const addr = parseAddress(value);
+      const set = (patch: Partial<AddressValue>) => onChange(JSON.stringify({ ...addr, ...patch }));
+      return wrap(
+        <div className="space-y-2">
+          <input
+            className="input-field"
+            placeholder="Street address"
+            value={addr.street}
+            disabled={disabled}
+            onChange={(e) => set({ street: e.target.value })}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              className="input-field"
+              placeholder="City"
+              value={addr.city}
+              disabled={disabled}
+              onChange={(e) => set({ city: e.target.value })}
+            />
+            <input
+              className="input-field"
+              placeholder="State / Province"
+              value={addr.state}
+              disabled={disabled}
+              onChange={(e) => set({ state: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              className="input-field"
+              placeholder="ZIP / Postal code"
+              value={addr.zip}
+              disabled={disabled}
+              onChange={(e) => set({ zip: e.target.value })}
+            />
+            <input
+              className="input-field"
+              placeholder="Country"
+              value={addr.country}
+              disabled={disabled}
+              onChange={(e) => set({ country: e.target.value })}
+            />
+          </div>
+        </div>,
+      );
+    }
+
+    case "RATING": {
+      const max = field.config.maxRating ?? 5;
+      const current = Number(value) || 0;
+      return wrap(
+        <div className="flex gap-1">
+          {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
+            <button
+              key={n}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(String(n))}
+              aria-label={`Rate ${n} out of ${max}`}
+              className={`text-2xl leading-none transition ${n <= current ? "text-amber-400" : "text-slate-300 dark:text-slate-700"} ${disabled ? "" : "hover:text-amber-400"}`}
+            >
+              ★
+            </button>
+          ))}
+        </div>,
+      );
+    }
+
+    case "SIGNATURE":
+      return wrap(<SignaturePad value={value} onChange={onChange} disabled={disabled} />);
+
+    case "CALCULATION":
+      return wrap(
+        <div className="input-field bg-slate-50 font-medium text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+          {value || "0"}
+        </div>,
       );
 
     case "TEXT":

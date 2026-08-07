@@ -1,8 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import type { FieldDto } from "@sfb/shared";
+import { isComputedField, isLayoutField } from "@sfb/shared";
 import { FormFieldRenderer } from "@/components/FormFieldRenderer";
+import { evaluateFormula } from "@/lib/safeFormula";
 
 interface Props {
   title: string;
@@ -23,9 +25,41 @@ export function PreviewForm({ title, description, fields, mode = "live", onSubmi
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Hidden fields carry a fixed value the visitor never sees or edits.
+  useEffect(() => {
+    setValues((prev) => {
+      const updates: Record<string, string> = {};
+      for (const f of fields) {
+        if (f.type === "HIDDEN" && prev[f.id] === undefined) {
+          updates[f.id] = f.config.defaultValue ?? "";
+        }
+      }
+      return Object.keys(updates).length ? { ...prev, ...updates } : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields]);
+
+  // Recompute Calculation fields whenever an input changes. Only writes back
+  // when a computed value actually differs from what's stored, so this
+  // settles in one extra pass instead of looping forever.
+  useEffect(() => {
+    setValues((prev) => {
+      const updates: Record<string, string> = {};
+      for (const f of fields) {
+        if (f.type !== "CALCULATION") continue;
+        const computed = evaluateFormula(f.config.formula ?? "", prev, f.config.precision ?? 2);
+        const computedStr = computed === null ? "" : String(computed);
+        if (prev[f.id] !== computedStr) updates[f.id] = computedStr;
+      }
+      return Object.keys(updates).length ? { ...prev, ...updates } : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values, fields]);
+
   function validate(): boolean {
     const nextErrors: Record<string, string> = {};
     for (const f of fields) {
+      if (isLayoutField(f.type) || isComputedField(f.type)) continue;
       if (f.required && !values[f.id]?.trim()) {
         nextErrors[f.id] = "This field is required";
       }

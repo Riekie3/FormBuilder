@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { asyncHandler, HttpError } from "../middleware/errorHandler";
 import { publicSubmissionRateLimit } from "../middleware/rateLimit";
 import { sha256Hex } from "../lib/hash";
+import { isComputedField, isLayoutField } from "@sfb/shared";
 import type { FieldDto, PublicFormDto } from "@sfb/shared";
 import type { Field as PrismaField } from "@prisma/client";
 
@@ -59,6 +60,7 @@ publicRouter.post(
     const valueByFieldId = new Map(body.answers.map((a) => [a.fieldId, a.value]));
 
     for (const field of fields) {
+      if (isLayoutField(field.type) || isComputedField(field.type)) continue;
       if (field.required && !valueByFieldId.get(field.id)?.trim()) {
         throw new HttpError(400, `"${field.label}" is required`);
       }

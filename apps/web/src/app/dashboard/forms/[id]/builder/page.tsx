@@ -142,9 +142,20 @@ function BuilderContent() {
             />
           </div>
           <div className="order-3 space-y-4">
+            <div className="card space-y-2 p-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Product code</h3>
+              <input
+                defaultValue={form.productCode ?? ""}
+                onChange={(e) => debouncedMetaSave({ productCode: e.target.value || null })}
+                placeholder="e.g. SKU-1024"
+                className="input-field text-sm"
+              />
+              <p className="text-xs text-slate-400">Your own reference code — never shown to visitors.</p>
+            </div>
             <ApprovalSettings form={form} onUpdate={updateFormMetaImmediate} />
             <FieldSettingsPanel
               field={selectedField}
+              allFields={fields}
               onChange={(patch) => selectedField && updateField(selectedField.id, patch)}
             />
           </div>

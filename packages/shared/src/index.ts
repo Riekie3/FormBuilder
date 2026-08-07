@@ -11,6 +11,15 @@ export const FIELD_TYPES = [
   "DROPDOWN",
   "RADIO",
   "CHECKBOX",
+  "ADDRESS",
+  "RATING",
+  "SIGNATURE",
+  "DIVIDER",
+  "HEADING",
+  "HTML_BLOCK",
+  "HIDDEN",
+  "RICH_TEXT",
+  "CALCULATION",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -27,6 +36,24 @@ export interface FieldConfig {
   options?: FieldOption[]; // DROPDOWN, RADIO, CHECKBOX
   min?: number; // NUMBER
   max?: number; // NUMBER
+  maxRating?: number; // RATING — default 5
+  htmlContent?: string; // HTML_BLOCK — sanitized at render time, never trusted raw
+  richText?: string; // RICH_TEXT — a small safe markdown subset (bold/italic/links/newlines)
+  defaultValue?: string; // HIDDEN — the constant value submitted with the form
+  formula?: string; // CALCULATION — e.g. "{fieldId1} + {fieldId2} * 2"
+  precision?: number; // CALCULATION — decimal places to round to, default 2
+}
+
+// Divider/Heading/HTML Block/Rich Text are content, not input — they never
+// collect a value and can never be marked required.
+export function isLayoutField(type: FieldType): boolean {
+  return type === "DIVIDER" || type === "HEADING" || type === "HTML_BLOCK" || type === "RICH_TEXT";
+}
+
+// Calculation derives its value from other fields — the visitor never types
+// into it directly, so it's exempt from required-field validation too.
+export function isComputedField(type: FieldType): boolean {
+  return type === "CALCULATION";
 }
 
 export interface FieldDto {
@@ -46,6 +73,9 @@ export interface FormSummaryDto {
   slug: string;
   status: FormStatus;
   responseCount: number;
+  // Free-text tag/identifier (e.g. a SKU or reference code) — purely for the
+  // form owner's own organization, not shown to public form visitors.
+  productCode: string | null;
   departmentId: string | null;
   departmentName: string | null;
   // What the *current* user can do with this form — lets the UI hide
@@ -157,6 +187,15 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   DROPDOWN: "Dropdown",
   RADIO: "Radio",
   CHECKBOX: "Checkbox",
+  ADDRESS: "Address",
+  RATING: "Rating",
+  SIGNATURE: "Signature",
+  DIVIDER: "Divider",
+  HEADING: "Heading",
+  HTML_BLOCK: "HTML Block",
+  HIDDEN: "Hidden Field",
+  RICH_TEXT: "Rich Text",
+  CALCULATION: "Calculation",
 };
 
 export function fieldSupportsOptions(type: FieldType): boolean {

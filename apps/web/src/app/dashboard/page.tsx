@@ -157,6 +157,7 @@ function DashboardContent() {
               </Link>
               <p className="text-xs text-slate-400">
                 {form.responseCount} response{form.responseCount === 1 ? "" : "s"}
+                {form.productCode && <span className="ml-2 font-mono text-slate-400">#{form.productCode}</span>}
               </p>
 
               <div className="mt-2 flex gap-2 border-t border-slate-100 pt-3 text-sm dark:border-slate-800">

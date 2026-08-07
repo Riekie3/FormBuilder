@@ -4,9 +4,11 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 of 8** on the roadmap: core form building/submission,
-department-based roles and permissions, and a single-level approval workflow.
-See [Roadmap](#roadmap) for what's planned in each later phase.
+This is **Phases 1-3 plus Phase 4a of 8** on the roadmap: core form
+building/submission, department-based roles and permissions, a single-level
+approval workflow, and 9 additional field types (Address, Rating, Signature,
+Divider, Heading, HTML Block, Hidden, Rich Text, Calculation) plus product
+code naming. See [Roadmap](#roadmap) for what's planned in each later phase.
 
 ## Stack
 
@@ -104,8 +106,17 @@ docker/       Dockerfiles + nginx.conf
   browser-cookie-authenticated write endpoint is added later.
 - express-rate-limit on auth and public submission endpoints.
 - zod validation on every request body. Prisma parameterizes all queries.
-- helmet default headers; no raw HTML/script injection points exist yet
-  (Custom CSS/JS and HTML Block fields are deferred — see Roadmap).
+- helmet default headers. The two raw-HTML-adjacent field types (Phase 4a) are
+  both sanitized: the HTML Block field is passed through DOMPurify at render
+  time (not at storage time, since the builder-authored HTML isn't trusted
+  either), and the Rich Text field uses a hand-rolled safe-markdown renderer
+  that HTML-escapes input first, then applies a small whitelist of regex
+  transforms (bold/italic/http(s)-only links) — never raw HTML passthrough.
+  The Calculation field's formula is evaluated by a hand-rolled recursive-
+  descent arithmetic parser (`apps/web/src/lib/safeFormula.ts`), never
+  `eval()`/`new Function()`, so a form-builder-authored formula string can't
+  execute arbitrary code. Custom CSS/JS injection is still deferred — see
+  Roadmap.
 
 ## Roadmap
 
@@ -205,18 +216,50 @@ no SMTP integration anywhere yet, and standing one up is its own task better
 suited to when Phase 6 adds email templates. The in-app Approvals dashboard
 covers the practical "what's waiting on me" need in the meantime.
 
-### Phase 4 — Builder power features ⬜ not started
+### Phase 4a — Remaining field types & product code ✅ done
 
-- Remaining field types: Address, Rating, Signature, Rich Text, Divider,
-  Heading, HTML Block, Hidden, Calculation (File/Image Upload and Payment wait
-  for Phase 6's storage/payment-provider work)
+- 9 new field types: **Address** (composite street/city/state/zip/country,
+  JSON-backed), **Rating** (configurable max, star buttons), **Signature**
+  (canvas-based capture, mouse+touch, PNG data URL via
+  `apps/web/src/components/SignaturePad.tsx`), **Divider**, **Heading**,
+  **HTML Block** (DOMPurify-sanitized at render), **Hidden** (default value,
+  pre-filled silently, excluded from required-validation), **Rich Text**
+  (safe-markdown subset: bold/italic/http(s)-links), **Calculation**
+  (formula referencing other Number fields by `{fieldId}` token, hand-rolled
+  safe arithmetic evaluator, live-recomputed in the preview/public form)
+- File/Image Upload and Payment still wait for Phase 6's storage/
+  payment-provider work; Linked/Lookup and Multilingual forms remain deferred
+  below pending spec clarification
+- **Product code naming** (SOW 2.7): a `Form.productCode` field, editable
+  from the builder, shown as a badge on dashboard form cards
+- Per-type builder settings panel (`FieldSettingsPanel.tsx`): hides
+  irrelevant controls per type (e.g. no Required checkbox on layout/computed
+  fields), adds type-specific config UI (max rating, formula + insertable
+  field-token picker + decimal places, HTML/markdown content textareas)
+- `isLayoutField()`/`isComputedField()` helpers in `packages/shared` used
+  consistently to skip required-field validation (client and server) for
+  Divider/Heading/HTML Block/Rich Text/Calculation
+- `displayAnswerValue.ts` updated for Address (flattened, comma-joined) and
+  Signature ("(signed)" placeholder instead of a raw data URL) in the
+  responses table; CSV export keeps raw/stable values (full JSON, full data
+  URL) per the established convention
+- 11 new Vitest unit tests (`apps/web`) for the safe formula evaluator and
+  safe-markdown renderer, including explicit code-injection-attempt and
+  XSS-payload test cases proving neither can execute
+- Verified end-to-end: an 11-field test form built, published, and submitted
+  via the public API with real values for every fillable field; confirmed in
+  the browser that the HTML Block's embedded `<script>`/`onerror` payload is
+  stripped from the actual rendered DOM while its safe markup survives, the
+  Rich Text markdown renders correctly, the responses table and CSV export
+  both display every new field type correctly, then cleaned up the test form
+
+### Phase 4 continuation — Builder power features ⬜ not started
+
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
   reference list (Excel/CSV) as a data source; bind a field to it with
   prefix-based autocomplete. Needs a clarified functional spec before
   estimating — open questions: is the dataset reusable across forms or
   scoped to one field, who can edit it, what happens with ambiguous prefixes
-- **Product code naming** (SOW 2.7): tagging/identification metadata on
-  forms/submissions
 - Multi-page forms, progress bar, nested sections
 - Conditional logic — single/multiple selection triggers (SOW 2.2/2.3)
 - Undo/redo, multi-select, copy/paste, custom validation rules

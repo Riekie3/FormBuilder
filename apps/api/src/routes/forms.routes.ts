@@ -79,6 +79,7 @@ async function toSummaryDto(
     slug: form.slug,
     status: form.status,
     responseCount,
+    productCode: form.productCode,
     departmentId: form.departmentId,
     departmentName: form.department?.name ?? null,
     canEdit: perms.canEdit,
@@ -105,6 +106,7 @@ const updateFormSchema = z.object({
   departmentId: z.string().nullable().optional(),
   requiresApproval: z.boolean().optional(),
   approverRoleId: z.string().nullable().optional(),
+  productCode: z.string().trim().max(120).nullable().optional(),
 });
 
 const fieldOptionSchema = z.object({
@@ -119,6 +121,12 @@ const fieldConfigSchema = z.object({
   options: z.array(fieldOptionSchema).max(50).optional(),
   min: z.number().optional(),
   max: z.number().optional(),
+  maxRating: z.number().int().min(1).max(10).optional(),
+  htmlContent: z.string().max(20000).optional(),
+  richText: z.string().max(5000).optional(),
+  defaultValue: z.string().max(500).optional(),
+  formula: z.string().max(1000).optional(),
+  precision: z.number().int().min(0).max(6).optional(),
 });
 
 const fieldInputSchema = z.object({
@@ -317,6 +325,7 @@ formsRouter.patch(
         ...(body.departmentId !== undefined ? { departmentId: body.departmentId } : {}),
         ...(body.requiresApproval !== undefined ? { requiresApproval: body.requiresApproval } : {}),
         approverRoleId: nextRequiresApproval ? nextApproverRoleId : null,
+        ...(body.productCode !== undefined ? { productCode: body.productCode || null } : {}),
       },
       include: FORM_INCLUDE,
     });

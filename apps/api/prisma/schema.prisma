@@ -22,6 +22,15 @@ enum FieldType {
   DROPDOWN
   RADIO
   CHECKBOX
+  ADDRESS
+  RATING
+  SIGNATURE
+  DIVIDER
+  HEADING
+  HTML_BLOCK
+  HIDDEN
+  RICH_TEXT
+  CALCULATION
 }
 
 enum FormStatus {
@@ -126,6 +135,9 @@ model Form {
   requiresApproval Boolean  @default(false)
   approverRoleId   String?
   approverRole     Role?    @relation("FormApproverRole", fields: [approverRoleId], references: [id], onDelete: SetNull)
+  // Free-text tag/reference code for the owner's own organization (SOW 2.7
+  // "product code naming") — never shown to public form visitors.
+  productCode String?
   fields      Field[]
   responses   Response[]
   createdAt   DateTime    @default(now())
