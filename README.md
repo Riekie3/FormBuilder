@@ -220,6 +220,29 @@ covers the practical "what's waiting on me" need in the meantime.
 - Multi-page forms, progress bar, nested sections
 - Conditional logic — single/multiple selection triggers (SOW 2.2/2.3)
 - Undo/redo, multi-select, copy/paste, custom validation rules
+- **Builder UX polish** (from Jotform's open-source `dnd-builder` library):
+  field resizing, alignment guides, and distinct builder/preview/presentation/
+  print view modes
+- **One-question-per-page "conversational" layout**: a form display mode
+  variant on top of multi-page forms, one field per screen
+- **Answer piping**: reuse an earlier answer's value inside a later
+  question's label/help text
+- **URL query-param pre-fill**: pre-populate field values from the public
+  form link's query string
+- **Save-and-resume**: a partially-completed public submission can be saved
+  and continued later via a resume link/token
+- **Multilingual forms**: translate a form's labels/text for multiple
+  locales — real i18n infrastructure, needs its own scoping pass before
+  estimating (translation storage model, locale switcher UX, whether
+  submissions record which locale was used)
+
+(The builder UX polish and the four items above it are sourced from a
+competitive review of Jotform's public features page and their open-source
+`dnd-builder` library — not from their closed-source product code, which
+isn't public. Deliberately not chasing from that same review: 200+ native
+integrations — our Phase 8 webhooks/API let users wire up Zapier/Make
+themselves instead — HIPAA compliance, and offline mobile collection; all
+disproportionate effort for now.)
 
 ### Phase 5 — Dashboard, Reporting & Data Lifecycle ⬜ not started
 
@@ -249,6 +272,8 @@ covers the practical "what's waiting on me" need in the meantime.
   redirect URL
 - Email notifications, autoresponders
 - Spam protection, reCAPTCHA, Cloudflare Turnstile
+- **White-labeling**: remove the "Built with Smart Form Builder" public-form
+  footer, custom domain support (from the Jotform competitive review)
 
 ### Phase 8 — Sharing & Templates ⬜ not started
 
