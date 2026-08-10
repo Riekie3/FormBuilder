@@ -56,6 +56,14 @@ export interface FieldConfig {
   // client-side rendering concern — the server never reads or validates it
   // beyond generic string bounds.
   prefillKey?: string;
+  minLength?: number; // TEXT, PARAGRAPH
+  maxLength?: number; // TEXT, PARAGRAPH
+  // A fixed, pre-vetted content-shape check — deliberately not a
+  // user-authored regex. A form-builder-supplied pattern evaluated on every
+  // public submission would be a real ReDoS vector (catastrophic
+  // backtracking); a closed set of hand-picked, linear-time patterns has no
+  // such risk. TEXT only.
+  format?: "any" | "letters" | "numbers" | "alphanumeric";
 }
 
 export interface FieldCondition {
@@ -131,6 +139,62 @@ export function isMatrixAnswerComplete(rows: FieldOption[], rawValue: string | u
 export function isFieldAnswerComplete(field: Pick<FieldDto, "type" | "config">, value: string | undefined): boolean {
   if (field.type === "MATRIX") return isMatrixAnswerComplete(field.config.matrixRows ?? [], value);
   return !!value?.trim();
+}
+
+// Fixed, linear-time patterns only — never a form-builder-supplied regex.
+// A user-authored pattern evaluated on every public submission would be a
+// real ReDoS vector (catastrophic backtracking is easy to write by
+// accident, not just maliciously); this closed set has no such risk.
+const FORMAT_PATTERNS: Record<string, RegExp> = {
+  letters: /^[A-Za-z\s]+$/,
+  numbers: /^[0-9]+$/,
+  alphanumeric: /^[A-Za-z0-9]+$/,
+};
+const FORMAT_LABELS: Record<string, string> = {
+  letters: "letters only",
+  numbers: "numbers only",
+  alphanumeric: "letters and numbers only",
+};
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Format/length/range constraints beyond plain required-ness — e.g. a Number
+// field's configured min/max, or a Text field's min/max length and content
+// shape. Only checked when a value is actually present; an empty optional
+// field is a required-ness question, not a format one, so this always
+// returns null for "". Used identically by the client (what to flag inline)
+// and the server (what to actually reject) so the two can't disagree.
+export function getFieldValidationError(field: Pick<FieldDto, "type" | "config">, value: string): string | null {
+  if (!value) return null;
+  const { type, config } = field;
+
+  if (type === "TEXT" || type === "PARAGRAPH") {
+    if (config.minLength !== undefined && value.length < config.minLength) {
+      return `Must be at least ${config.minLength} characters`;
+    }
+    if (config.maxLength !== undefined && value.length > config.maxLength) {
+      return `Must be at most ${config.maxLength} characters`;
+    }
+  }
+
+  if (type === "TEXT" && config.format && config.format !== "any") {
+    const pattern = FORMAT_PATTERNS[config.format];
+    if (pattern && !pattern.test(value)) {
+      return `Must contain ${FORMAT_LABELS[config.format]}`;
+    }
+  }
+
+  if (type === "NUMBER") {
+    const n = Number(value);
+    if (Number.isNaN(n)) return "Must be a number";
+    if (config.min !== undefined && n < config.min) return `Must be at least ${config.min}`;
+    if (config.max !== undefined && n > config.max) return `Must be at most ${config.max}`;
+  }
+
+  if (type === "EMAIL" && !EMAIL_PATTERN.test(value)) {
+    return "Must be a valid email address";
+  }
+
+  return null;
 }
 
 export interface FieldDto {

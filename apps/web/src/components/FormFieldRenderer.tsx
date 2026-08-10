@@ -130,6 +130,7 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled, all
           className="input-field min-h-[100px]"
           placeholder={field.config.placeholder}
           value={value}
+          maxLength={field.config.maxLength}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
         />,
@@ -204,8 +205,6 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled, all
           className="input-field"
           placeholder={field.config.placeholder}
           value={value}
-          min={field.config.min}
-          max={field.config.max}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
         />,
@@ -223,9 +222,15 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled, all
       );
 
     case "EMAIL":
+      // type="text" + inputMode="email" rather than type="email": the
+      // latter's native format validation blocks the whole form's submit
+      // event silently (no visible error, no request sent) before our own
+      // custom validation ever runs — inputMode alone still gives mobile
+      // browsers the "@"-key email keyboard, with none of that.
       return wrap(
         <input
-          type="email"
+          type="text"
+          inputMode="email"
           className="input-field"
           placeholder={field.config.placeholder ?? "you@example.com"}
           value={value}
@@ -376,6 +381,7 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled, all
           className="input-field"
           placeholder={field.config.placeholder}
           value={value}
+          maxLength={field.config.maxLength}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
         />,

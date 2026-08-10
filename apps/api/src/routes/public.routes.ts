@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { asyncHandler, HttpError } from "../middleware/errorHandler";
 import { publicSubmissionRateLimit } from "../middleware/rateLimit";
 import { sha256Hex } from "../lib/hash";
-import { isComputedField, isFieldAnswerComplete, isFieldVisible, isLayoutField } from "@sfb/shared";
+import { getFieldValidationError, isComputedField, isFieldAnswerComplete, isFieldVisible, isLayoutField } from "@sfb/shared";
 import type { FieldDto, PublicFormDto } from "@sfb/shared";
 import type { Field as PrismaField } from "@prisma/client";
 
@@ -77,8 +77,16 @@ publicRouter.post(
       // from required-ness — the server must agree with what the client
       // actually showed, evaluated against the same submitted answers.
       if (!isFieldVisible(toFieldDto(field), answersByFieldId)) continue;
-      if (field.required && !isFieldAnswerComplete(toFieldDto(field), valueByFieldId.get(field.id))) {
+      const value = valueByFieldId.get(field.id);
+      if (field.required && !isFieldAnswerComplete(toFieldDto(field), value)) {
         throw new HttpError(400, `"${field.label}" is required`);
+      }
+      // Format/length/range constraints apply whenever a value is present,
+      // independent of required-ness — an optional Email field, if filled
+      // in, still has to actually look like an email.
+      const validationError = getFieldValidationError(toFieldDto(field), value ?? "");
+      if (validationError) {
+        throw new HttpError(400, `"${field.label}": ${validationError}`);
       }
     }
 

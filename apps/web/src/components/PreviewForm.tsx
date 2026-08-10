@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { FieldDto } from "@sfb/shared";
-import { isComputedField, isFieldAnswerComplete, isFieldVisible, isLayoutField } from "@sfb/shared";
+import { getFieldValidationError, isComputedField, isFieldAnswerComplete, isFieldVisible, isLayoutField } from "@sfb/shared";
 import { FormFieldRenderer } from "@/components/FormFieldRenderer";
 import { evaluateFormula } from "@/lib/safeFormula";
 import { splitIntoPages } from "@/lib/formPages";
@@ -132,7 +132,10 @@ export function PreviewForm({
       if (isLayoutField(f.type) || isComputedField(f.type)) continue;
       if (f.required && !isFieldAnswerComplete(f, values[f.id])) {
         pageErrors[f.id] = "This field is required";
+        continue;
       }
+      const validationError = getFieldValidationError(f, values[f.id] ?? "");
+      if (validationError) pageErrors[f.id] = validationError;
     }
     setErrors((prev) => {
       const next = { ...prev };

@@ -4,14 +4,14 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a-4f of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a-4g of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a
 single-level approval workflow, 10 additional field types (Address, Rating,
 Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
 Matrix) plus product code naming, multi-page forms with conditional field
 logic, builder undo/redo/multi-select/copy-paste, answer piping with URL
-query-param pre-fill, and save-and-resume. See [Roadmap](#roadmap) for
-what's planned in each later phase.
+query-param pre-fill, save-and-resume, and custom field validation rules.
+See [Roadmap](#roadmap) for what's planned in each later phase.
 
 ## Stack
 
@@ -84,8 +84,11 @@ visibility, the public submission → response → CSV export path,
 department-wide permission boundaries (admin-route gating, view/edit/delete
 enforcement, create-permission checks), the approval workflow (opt-in
 validation, submission status, decision authorization, the pending-approvals
-aggregation), and save-and-resume drafts (save/update-in-place/fetch,
-cross-form token isolation, cleanup on final submit). The auth/submission
+aggregation), save-and-resume drafts (save/update-in-place/fetch,
+cross-form token isolation, cleanup on final submit), and field-level
+validation rules (Number min/max, Text length/format, Email format, and
+that an optional field left blank skips format checks while one that's
+merely non-required-but-filled-in still gets validated). The auth/submission
 rate limiters are skipped under `NODE_ENV=test` so test suites that
 legitimately register many accounts don't throttle themselves.
 
@@ -472,6 +475,51 @@ up later from a link, without ever creating a half-finished `Response`.
   that the draft was actually deleted server-side afterward; separately
   confirmed the invalid-token fallback path
 
+### Phase 4g — Custom field validation rules ✅ done
+
+Closes a real, pre-existing gap: the `NUMBER` field's `min`/`max` config
+has existed since Phase 1 but had **zero builder UI to set it and zero
+server-side enforcement** — dead, half-wired config nobody could actually
+use. This phase both fixes that and extends validation to Text length and
+content-shape constraints.
+
+- `getFieldValidationError()` in `packages/shared` — the single
+  implementation the client (inline error display) and server (actual
+  rejection) both call, so they can't disagree about what's valid. Checked
+  independently of required-ness: an optional Email field, if filled in at
+  all, still has to look like an email
+- `minLength`/`maxLength` (Text, Paragraph) and a `format` preset (Text
+  only: Any / Letters only / Numbers only / Letters and numbers only)
+- **Deliberately not a user-authored regex.** A form-builder-supplied
+  pattern evaluated on every public submission is a real ReDoS
+  (catastrophic-backtracking) vector — ordinary, not just malicious,
+  patterns like `(a+)+` can hang a request indefinitely. The `format`
+  presets are a closed set of fixed, hand-vetted, linear-time regexes,
+  the same "no user-authored code" approach already used for the
+  Calculation field's formula evaluator and the Rich Text renderer
+- **A real bug found and fixed during verification, not a hypothetical**:
+  giving the pre-existing `NUMBER` min/max config real values for the
+  first time revealed that `<input type="number" min max>`'s *native*
+  HTML5 constraint validation silently blocks the entire form's submit
+  event — no visible error, no network request — before React's own
+  `onSubmit` handler, and therefore this phase's new validation, ever
+  runs. The same issue affects `type="email"`'s native format check.
+  Fixed by dropping the `min`/`max` attributes (server + custom JS now
+  own that check) and switching Email to `type="text"` +
+  `inputMode="email"` (keeps the mobile "@"-keyboard hint, drops the
+  native blocking). `maxLength` was kept as an HTML attribute since,
+  unlike `minLength`, it only caps typing and has no submit-blocking
+  behavior of its own
+- Verified end-to-end: built a form with a letters-only length-bounded
+  Text field and a bounded Number field; confirmed invalid input is
+  silently swallowed by native validation *before* the fix and correctly
+  shows inline errors *after* it; confirmed the server independently
+  rejects the same invalid values when submitted directly against the
+  public API, bypassing the browser entirely; confirmed valid submissions
+  still succeed and appear in the responses table. 7 new API tests cover
+  Number range, non-numeric rejection, Text length, Text format, Email
+  format, and the required-vs-format-independent distinction
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
@@ -486,7 +534,6 @@ up later from a link, without ever creating a half-finished `Response`.
   response), a repeater UI with add/remove row, and CSV export changes to
   flatten a variable number of rows into columns
 - Nested sections within a page
-- Custom validation rules
 - **Builder UX polish** (from Jotform's open-source `dnd-builder` library):
   field resizing, alignment guides, and distinct builder/preview/presentation/
   print view modes

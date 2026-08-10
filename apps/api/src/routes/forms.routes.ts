@@ -137,6 +137,9 @@ const fieldConfigSchema = z.object({
   matrixRows: z.array(fieldOptionSchema).max(30).optional(),
   matrixColumns: z.array(fieldOptionSchema).max(10).optional(),
   prefillKey: z.string().trim().max(60).optional(),
+  minLength: z.number().int().min(0).max(10000).optional(),
+  maxLength: z.number().int().min(0).max(10000).optional(),
+  format: z.enum(["any", "letters", "numbers", "alphanumeric"]).optional(),
 });
 
 const fieldInputSchema = z.object({

@@ -224,6 +224,83 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
         </div>
       )}
 
+      {(field.type === "TEXT" || field.type === "PARAGRAPH") && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Min length</label>
+              <input
+                type="number"
+                min={0}
+                className="input-field"
+                value={field.config.minLength ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    config: { ...field.config, minLength: e.target.value === "" ? undefined : Number(e.target.value) },
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Max length</label>
+              <input
+                type="number"
+                min={0}
+                className="input-field"
+                value={field.config.maxLength ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    config: { ...field.config, maxLength: e.target.value === "" ? undefined : Number(e.target.value) },
+                  })
+                }
+              />
+            </div>
+          </div>
+          {field.type === "TEXT" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Allowed characters</label>
+              <select
+                className="input-field"
+                value={field.config.format ?? "any"}
+                onChange={(e) => onChange({ config: { ...field.config, format: e.target.value as "any" | "letters" | "numbers" | "alphanumeric" } })}
+              >
+                <option value="any">Any</option>
+                <option value="letters">Letters only</option>
+                <option value="numbers">Numbers only</option>
+                <option value="alphanumeric">Letters and numbers only</option>
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {field.type === "NUMBER" && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Min value</label>
+            <input
+              type="number"
+              className="input-field"
+              value={field.config.min ?? ""}
+              onChange={(e) =>
+                onChange({ config: { ...field.config, min: e.target.value === "" ? undefined : Number(e.target.value) } })
+              }
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Max value</label>
+            <input
+              type="number"
+              className="input-field"
+              value={field.config.max ?? ""}
+              onChange={(e) =>
+                onChange({ config: { ...field.config, max: e.target.value === "" ? undefined : Number(e.target.value) } })
+              }
+            />
+          </div>
+        </div>
+      )}
+
       {field.type === "RATING" && (
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Max rating</label>
