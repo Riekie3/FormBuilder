@@ -23,6 +23,7 @@ export const FIELD_TYPES = [
   "PAGE_BREAK",
   "MATRIX",
   "REPEATER",
+  "SECTION",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -78,15 +79,17 @@ export interface FieldCondition {
   value: string;
 }
 
-// Divider/Heading/HTML Block/Rich Text/Page Break are content or structure,
-// not input — they never collect a value and can never be marked required.
+// Divider/Heading/HTML Block/Rich Text/Page Break/Section are content or
+// structure, not input — they never collect a value and can never be marked
+// required.
 export function isLayoutField(type: FieldType): boolean {
   return (
     type === "DIVIDER" ||
     type === "HEADING" ||
     type === "HTML_BLOCK" ||
     type === "RICH_TEXT" ||
-    type === "PAGE_BREAK"
+    type === "PAGE_BREAK" ||
+    type === "SECTION"
   );
 }
 
@@ -122,6 +125,37 @@ export function isFieldVisible(field: Pick<FieldDto, "config">, values: Record<s
         return true;
     }
   });
+}
+
+// A Section field groups every field that follows it, up to the next
+// Section or Page Break — its own condition (evaluated the same way any
+// other field's condition is) gates the whole group at once, instead of the
+// form builder having to repeat that condition on every field inside it.
+// Sections deliberately don't span a page break: PAGE_BREAK always resets
+// the group back open, since a section reads as one visual screen's worth
+// of grouped content, not something spanning multiple pages.
+//
+// Returns the set of field ids actually visible to the visitor, considering
+// both a field's own condition and its enclosing section's. Used identically
+// by the client (what to render) and the server (what's actually required),
+// so the two can't disagree about what the visitor saw.
+export function computeVisibleFieldIds(fields: FieldDto[], values: Record<string, string>): Set<string> {
+  const visible = new Set<string>();
+  let sectionOpen = true;
+  for (const field of fields) {
+    if (field.type === "SECTION") {
+      sectionOpen = isFieldVisible(field, values);
+      if (sectionOpen) visible.add(field.id);
+      continue;
+    }
+    if (field.type === "PAGE_BREAK") {
+      sectionOpen = true;
+      visible.add(field.id);
+      continue;
+    }
+    if (sectionOpen && isFieldVisible(field, values)) visible.add(field.id);
+  }
+  return visible;
 }
 
 // A Matrix field stores one answer per row as JSON: { [rowId]: columnValue }.
@@ -368,6 +402,7 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   PAGE_BREAK: "Page Break",
   MATRIX: "Matrix",
   REPEATER: "Line Items",
+  SECTION: "Section",
 };
 
 export function fieldSupportsOptions(type: FieldType): boolean {

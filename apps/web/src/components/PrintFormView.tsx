@@ -57,6 +57,14 @@ function PrintField({ field }: { field: FieldDto }) {
         </div>
       );
 
+    case "SECTION":
+      return (
+        <div className="border-t border-slate-300 pt-4">
+          <h3 className="text-base font-semibold text-slate-900">{field.label}</h3>
+          {helpText}
+        </div>
+      );
+
     case "HTML_BLOCK":
       return (
         <div

@@ -34,6 +34,7 @@ enum FieldType {
   PAGE_BREAK
   MATRIX
   REPEATER
+  SECTION
 }
 
 enum FormStatus {

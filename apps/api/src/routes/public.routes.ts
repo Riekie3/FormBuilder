@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { asyncHandler, HttpError } from "../middleware/errorHandler";
 import { publicSubmissionRateLimit } from "../middleware/rateLimit";
 import { sha256Hex } from "../lib/hash";
-import { getFieldValidationError, isComputedField, isFieldAnswerComplete, isFieldVisible, isLayoutField } from "@sfb/shared";
+import { computeVisibleFieldIds, getFieldValidationError, isComputedField, isFieldAnswerComplete, isLayoutField } from "@sfb/shared";
 import type { FieldDto, PublicFormDto } from "@sfb/shared";
 import type { Field as PrismaField } from "@prisma/client";
 
@@ -71,13 +71,15 @@ publicRouter.post(
     const fieldById = new Map(fields.map((f) => [f.id, f]));
     const valueByFieldId = new Map(body.answers.map((a) => [a.fieldId, a.value]));
     const answersByFieldId = Object.fromEntries(valueByFieldId);
+    // A condition that hid this field — or hid the Section containing it —
+    // from the visitor also excuses it from required-ness — the server must
+    // agree with what the client actually showed, evaluated against the
+    // same submitted answers.
+    const visibleFieldIds = computeVisibleFieldIds(fields.map(toFieldDto), answersByFieldId);
 
     for (const field of fields) {
       if (isLayoutField(field.type) || isComputedField(field.type)) continue;
-      // A condition that hid this field from the visitor also excuses it
-      // from required-ness — the server must agree with what the client
-      // actually showed, evaluated against the same submitted answers.
-      if (!isFieldVisible(toFieldDto(field), answersByFieldId)) continue;
+      if (!visibleFieldIds.has(field.id)) continue;
       const value = valueByFieldId.get(field.id);
       if (field.required && !isFieldAnswerComplete(toFieldDto(field), value)) {
         throw new HttpError(400, `"${field.label}" is required`);

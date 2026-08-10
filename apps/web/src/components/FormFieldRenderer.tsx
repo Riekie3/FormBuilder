@@ -95,6 +95,17 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled, all
         </div>
       );
 
+    case "SECTION":
+      // A visual grouping marker, not a standalone heading — the top
+      // border reads as "a new group starts here" so a Section is
+      // distinguishable from a plain Heading at a glance.
+      return (
+        <div className="border-t border-slate-200 pt-4 dark:border-slate-800">
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white">{pipedLabel}</h3>
+          {helpText}
+        </div>
+      );
+
     case "HTML_BLOCK":
       return (
         <div

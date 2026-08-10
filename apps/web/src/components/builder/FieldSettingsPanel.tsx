@@ -18,7 +18,7 @@ const PLACEHOLDER_TYPES = new Set(["TEXT", "PARAGRAPH", "EMAIL", "PHONE", "NUMBE
 // sub-layouts that get cramped at half/third width (Address, Matrix,
 // Repeater) or are true full-bleed content by nature (Signature, Divider,
 // Page Break).
-const WIDTH_UNSUPPORTED_TYPES = new Set(["ADDRESS", "MATRIX", "REPEATER", "SIGNATURE", "DIVIDER", "PAGE_BREAK"]);
+const WIDTH_UNSUPPORTED_TYPES = new Set(["ADDRESS", "MATRIX", "REPEATER", "SIGNATURE", "DIVIDER", "PAGE_BREAK", "SECTION"]);
 
 export function FieldSettingsPanel({ field, allFields, onChange, selectedCount = 0, onBulkDuplicate, onBulkDelete }: Props) {
   if (selectedCount > 1) {
@@ -237,7 +237,13 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
       {field.type !== "DIVIDER" && (
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-            {field.type === "HEADING" ? "Heading text" : isPageBreak(field.type) ? "Next page title (optional)" : "Label"}
+            {field.type === "HEADING"
+              ? "Heading text"
+              : field.type === "SECTION"
+                ? "Section title"
+                : isPageBreak(field.type)
+                  ? "Next page title (optional)"
+                  : "Label"}
           </label>
           <input
             className="input-field"
@@ -376,6 +382,21 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
             onChange={(e) => onChange({ config: { ...field.config, defaultValue: e.target.value } })}
           />
           <p className="mt-1 text-xs text-slate-400">Submitted with every response, never shown to visitors.</p>
+        </div>
+      )}
+
+      {field.type === "SECTION" && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Description (optional)</label>
+          <input
+            className="input-field"
+            value={field.config.helpText ?? ""}
+            onChange={(e) => onChange({ config: { ...field.config, helpText: e.target.value } })}
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            A condition set below hides this section's title and description along with every field in it, up to
+            the next Section or Page Break — no need to repeat the same condition on each field individually.
+          </p>
         </div>
       )}
 

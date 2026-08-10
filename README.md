@@ -4,17 +4,17 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a-4k of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a-4l of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a
-single-level approval workflow, 11 additional field types (Address, Rating,
+single-level approval workflow, 12 additional field types (Address, Rating,
 Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
-Matrix, Line Items) plus product code naming, multi-page forms with
-conditional field logic, builder undo/redo/multi-select/copy-paste, answer
-piping with URL query-param pre-fill, save-and-resume, custom field
-validation rules, a one-question-per-page conversational layout,
-half/third-width fields for side-by-side layouts, and a printable
-fill-by-hand view of a form. See [Roadmap](#roadmap) for what's planned in
-each later phase.
+Matrix, Line Items, Section) plus product code naming, multi-page forms
+with conditional field logic (now group-level via Sections, not just
+per-field), builder undo/redo/multi-select/copy-paste, answer piping with
+URL query-param pre-fill, save-and-resume, custom field validation rules, a
+one-question-per-page conversational layout, half/third-width fields for
+side-by-side layouts, and a printable fill-by-hand view of a form. See
+[Roadmap](#roadmap) for what's planned in each later phase.
 
 ## Stack
 
@@ -88,10 +88,14 @@ department-wide permission boundaries (admin-route gating, view/edit/delete
 enforcement, create-permission checks), the approval workflow (opt-in
 validation, submission status, decision authorization, the pending-approvals
 aggregation), save-and-resume drafts (save/update-in-place/fetch,
-cross-form token isolation, cleanup on final submit), and field-level
+cross-form token isolation, cleanup on final submit), field-level
 validation rules (Number min/max, Text length/format, Email format, and
 that an optional field left blank skips format checks while one that's
-merely non-required-but-filled-in still gets validated). The auth/submission
+merely non-required-but-filled-in still gets validated), the Repeater
+field's required-at-zero-rows behavior, and Section-level conditional
+visibility (a hidden section exempts its fields from required-validation,
+a visible one still enforces them, and a section's scope correctly stops
+at a Page Break). The auth/submission
 rate limiters are skipped under `NODE_ENV=test` so test suites that
 legitimately register many accounts don't throttle themselves.
 
@@ -660,6 +664,58 @@ it, from a new "Print" button in the builder toolbar.
   that the page's actual background and structure are correct; ran a full
   production build to confirm the new route compiles and is registered
 
+### Phase 4l — Sections & group-level conditional visibility ✅ done
+
+Nested sections within a page, reconsidered: a plain Heading already
+labels a group visually, so the missing piece wasn't another content
+block — it was applying **one condition to an entire group of fields**
+instead of repeating the same condition on each field individually. That
+turned out to be a small, schema-light addition once framed that way,
+built directly on the Phase 4b conditional-logic infrastructure rather
+than as a new nested-structure concept.
+
+- **Section field type**: a title, an optional description, and the same
+  `config.conditions` every other field already has. Its condition gates
+  not just itself but every field that follows it, up to the next Section
+  or Page Break — a form builder sets the condition once on the Section
+  instead of copy-pasting it onto every field inside the group
+- `computeVisibleFieldIds()` in `packages/shared`: walks the field list in
+  order, tracking whether the "current section" is open, and returns the
+  full set of fields actually visible to the visitor (a field's own
+  condition AND its enclosing section's both have to pass). Used
+  identically by the client (`PreviewForm`, replacing the old direct
+  `isFieldVisible` filtering) and the server (`public.routes.ts`'s
+  required-validation loop), so the two can't disagree about what the
+  visitor saw — same guarantee Phase 4b's per-field conditions already had
+- **Sections deliberately don't span a Page Break** — `PAGE_BREAK` always
+  resets the group back open, since a Section reads as one visual screen's
+  worth of grouped content, not something spanning multiple pages. A field
+  right after a page break is never accidentally exempted by an unrelated,
+  possibly-hidden section earlier in the form
+- Rendered as a bordered, heading-like block (title + description, no
+  input of its own) in the builder canvas, the live public form, and the
+  print view — visually distinct from a plain Heading via a top border
+  that reads as "a new group starts here"
+- Not offered as a conditional-logic trigger candidate for other fields
+  (it carries no value, same reasoning as Divider/Heading), always
+  full-width (grouping markers don't make sense at half/third width), and
+  excluded from the one-question-per-page "does this page already have
+  its question" check the same way other layout content is — a lone
+  Section title never becomes its own blank page
+- 3 new API tests verify directly against the public submission endpoint
+  (bypassing the client): a required field inside a hidden section is
+  exempted, the same field is enforced when the section's condition is
+  met, and a section's hidden scope correctly stops at a Page Break rather
+  than leaking into unrelated fields after it
+- Verified end-to-end: built a form with a Dropdown ("Are you employed?")
+  gating a Section containing two required text fields; confirmed in the
+  browser that choosing "No" hides the section and its fields (and any
+  inline errors on them) live, choosing "Yes" reveals them and enforces
+  both as required, and submitting with "No" succeeds without them —
+  matching the three cases the new API tests cover independently; also
+  confirmed the print view renders the section's title/description/fields
+  unconditionally, as a static paper form should
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
@@ -667,7 +723,6 @@ it, from a new "Print" button in the builder toolbar.
   prefix-based autocomplete. Needs a clarified functional spec before
   estimating — open questions: is the dataset reusable across forms or
   scoped to one field, who can edit it, what happens with ambiguous prefixes
-- Nested sections within a page
 - **Remaining builder UX polish**: alignment guides during drag — field
   width/resizing (Phase 4j) and a print view mode (Phase 4k) are both done;
   alignment guides need live drag-position feedback, which isn't

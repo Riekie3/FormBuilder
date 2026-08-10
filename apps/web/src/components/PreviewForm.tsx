@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { FieldDto } from "@sfb/shared";
-import { getFieldValidationError, isComputedField, isFieldAnswerComplete, isFieldVisible, isLayoutField } from "@sfb/shared";
+import { computeVisibleFieldIds, getFieldValidationError, isComputedField, isFieldAnswerComplete, isLayoutField } from "@sfb/shared";
 import { FormFieldRenderer } from "@/components/FormFieldRenderer";
 import { widthSpanClass } from "@/lib/fieldWidth";
 import { evaluateFormula } from "@/lib/safeFormula";
@@ -125,12 +125,17 @@ export function PreviewForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [values, fields]);
 
+  // Computed once over the whole form, not per-page — a Section's scope
+  // resets at every PAGE_BREAK anyway, so this is equivalent to computing it
+  // per-page but simpler.
+  const visibleFieldIds = useMemo(() => computeVisibleFieldIds(fields, values), [fields, values]);
+
   const currentPage = pages[pageIndex] ?? pages[0];
-  const currentPageFields = currentPage.fields.filter((f) => isFieldVisible(f, values));
+  const currentPageFields = currentPage.fields.filter((f) => visibleFieldIds.has(f.id));
 
   function validatePage(index: number): boolean {
     const pageFieldIds = new Set(pages[index].fields.map((f) => f.id));
-    const visible = pages[index].fields.filter((f) => isFieldVisible(f, values));
+    const visible = pages[index].fields.filter((f) => visibleFieldIds.has(f.id));
     const pageErrors: Record<string, string> = {};
     for (const f of visible) {
       if (isLayoutField(f.type) || isComputedField(f.type)) continue;
