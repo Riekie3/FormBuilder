@@ -4,16 +4,17 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a-4j of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a-4k of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a
 single-level approval workflow, 11 additional field types (Address, Rating,
 Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
 Matrix, Line Items) plus product code naming, multi-page forms with
 conditional field logic, builder undo/redo/multi-select/copy-paste, answer
 piping with URL query-param pre-fill, save-and-resume, custom field
-validation rules, a one-question-per-page conversational layout, and
-half/third-width fields for side-by-side layouts. See [Roadmap](#roadmap)
-for what's planned in each later phase.
+validation rules, a one-question-per-page conversational layout,
+half/third-width fields for side-by-side layouts, and a printable
+fill-by-hand view of a form. See [Roadmap](#roadmap) for what's planned in
+each later phase.
 
 ## Stack
 
@@ -620,6 +621,45 @@ width. The classic case: First Name and Last Name side by side.
   width instead of staying cramped side by side; submitted the form
   successfully
 
+### Phase 4k — Print view ✅ done
+
+A printable, fill-by-hand rendering of a form — for handing someone a paper
+copy, or a PDF made via the browser's own print dialog, when filling out
+the live web form isn't an option. Scoped as builder-side tooling (like
+Preview), not a public-facing feature: only the form owner/editor can open
+it, from a new "Print" button in the builder toolbar.
+
+- `apps/web/src/components/PrintFormView.tsx`: a from-scratch renderer,
+  not a repurposed `FormFieldRenderer` — a printed page has no interactive
+  controls at all, so every field type reduces to its paper equivalent
+  instead of a disabled input. Text-like fields get a ruled blank line,
+  Paragraph gets three, Dropdown/Radio get an empty circle per option to
+  mark, Checkbox an empty square, Rating a row of outlined stars, Address
+  five captioned blanks, Signature a signature line plus a separate date
+  line, Matrix a table of empty circles, and Line Items a table with its
+  configured columns and four blank rows to write into. Heading/Divider/
+  HTML Block/Rich Text render as ordinary content (nothing to fill in);
+  Hidden and Calculation contribute nothing to a printed page (nothing a
+  visitor would write, and nothing that can be computed without the live
+  form); a Page Break becomes a literal CSS `break-after: page` so a
+  multi-page form paginates correctly when actually printed
+- New authenticated route `/dashboard/forms/[id]/print` (own minimal
+  chrome, not wrapped in the dashboard shell's nav/header, so nothing but
+  the form itself is on the page) with a `print:hidden` "Print this form"
+  button that calls `window.print()`
+- `globals.css` forces a white background/black text under `@media print`
+  regardless of the app's dark mode — a dark-mode screenshot-to-PDF would
+  otherwise waste ink or print as a solid black page on most printers
+- Verified end-to-end: built a test form covering every field type
+  (Heading, Address, Rating, Signature, Checkbox, Radio, Calculation, Line
+  Items, Page Break, alongside the pre-existing Text/Email/Phone/Dropdown/
+  Paragraph "Contact Us" form), opened `/print` and confirmed every type
+  renders its correct paper equivalent and that Hidden/Calculation/Page
+  Break correctly contribute no visible fill-in content; confirmed via
+  `getComputedStyle`/`getBoundingClientRect` (not just visual inspection)
+  that the page's actual background and structure are correct; ran a full
+  production build to confirm the new route compiles and is registered
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
@@ -628,10 +668,12 @@ width. The classic case: First Name and Last Name side by side.
   estimating — open questions: is the dataset reusable across forms or
   scoped to one field, who can edit it, what happens with ambiguous prefixes
 - Nested sections within a page
-- **Remaining builder UX polish** (from Jotform's open-source
-  `dnd-builder` library): alignment guides, and distinct
-  builder/preview/presentation/print view modes — field width/resizing
-  itself shipped in Phase 4j above
+- **Remaining builder UX polish**: alignment guides during drag — field
+  width/resizing (Phase 4j) and a print view mode (Phase 4k) are both done;
+  alignment guides need live drag-position feedback, which isn't
+  meaningfully verifiable in this sandbox's browser pane (react-dnd's
+  HTML5 backend doesn't respond to synthetic drag events), so it's left
+  for a session where real drag interaction can be tested
 - **Multilingual forms**: translate a form's labels/text for multiple
   locales — real i18n infrastructure, needs its own scoping pass before
   estimating (translation storage model, locale switcher UX, whether
@@ -650,7 +692,8 @@ disproportionate effort for now.)
 - Analytics charts: daily/monthly submissions, conversion rate, average
   completion time
 - Per-column filtering, date-based filtering (SOW 2.5)
-- Excel export, PDF export, print view (SOW 2.6)
+- Excel export, PDF export (SOW 2.6) — a blank-form print view already
+  shipped in Phase 4k; this item is about exporting *response data*
 - **Auto-archive** (SOW 2.7): needs a clarified spec before building — global
   setting or per-form? Does "archive" mean hidden-from-view or
   export-then-delete? Has data-retention/compliance implications if

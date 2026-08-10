@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { ArrowLeft, Eye, Loader2, Radio, Check, Redo2, Undo2 } from "lucide-react";
+import { ArrowLeft, Eye, Loader2, Printer, Radio, Check, Redo2, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { AuthGate } from "@/components/AuthGate";
 import { useFormBuilder } from "@/hooks/useFormBuilder";
@@ -170,6 +170,13 @@ function BuilderContent() {
               </button>
               <button type="button" onClick={() => setShowPreview(true)} className="btn-secondary text-sm">
                 <Eye size={16} /> Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => window.open(`/dashboard/forms/${form.id}/print`, "_blank", "noopener")}
+                className="btn-secondary text-sm"
+              >
+                <Printer size={16} /> Print
               </button>
               <button
                 type="button"
