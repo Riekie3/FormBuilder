@@ -12,11 +12,19 @@ interface Props {
   description?: string | null;
   fields: FieldDto[];
   mode?: "preview" | "live";
-  onSubmit?: (answers: Record<string, string>) => Promise<void>;
+  onSubmit?: (answers: Record<string, string>, resumeToken: string | null) => Promise<void>;
   requiresApproval?: boolean;
   // Seeds the visitor's answers before they type anything — used by the
-  // public form's URL query-string pre-fill (config.prefillKey matches).
+  // public form's URL query-string pre-fill (config.prefillKey matches) and,
+  // taking priority over that, a resumed save-and-continue-later draft.
   initialValues?: Record<string, string>;
+  // The draft token this form was loaded from (via ?resume=token), if any —
+  // saving again updates that same draft instead of creating a new one.
+  initialResumeToken?: string | null;
+  // Present only in live mode (the builder's preview modal never passes
+  // this) — persists the current answers as a resumable draft and returns
+  // its token plus the full shareable resume link.
+  onSaveDraft?: (answers: Record<string, string>, token: string | null) => Promise<{ token: string; link: string }>;
 }
 
 // Renders a fillable form. In "preview" mode (used by the builder) submissions
@@ -32,6 +40,8 @@ export function PreviewForm({
   onSubmit,
   requiresApproval = false,
   initialValues,
+  initialResumeToken,
+  onSaveDraft,
 }: Props) {
   const [values, setValues] = useState<Record<string, string>>(() => initialValues ?? {});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -39,6 +49,38 @@ export function PreviewForm({
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
+  const [resumeToken, setResumeToken] = useState<string | null>(initialResumeToken ?? null);
+  const [draftLink, setDraftLink] = useState<string | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  async function handleSaveDraft() {
+    if (!onSaveDraft) return;
+    setSavingDraft(true);
+    setDraftError(null);
+    try {
+      const result = await onSaveDraft(values, resumeToken);
+      setResumeToken(result.token);
+      setDraftLink(result.link);
+      setLinkCopied(false);
+    } catch (err) {
+      setDraftError(err instanceof Error ? err.message : "Couldn't save your progress");
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
+  async function handleCopyDraftLink() {
+    if (!draftLink) return;
+    try {
+      await navigator.clipboard.writeText(draftLink);
+      setLinkCopied(true);
+    } catch {
+      // Clipboard access can be denied by the browser — the link is still
+      // shown as plain text, so the visitor can select and copy it manually.
+    }
+  }
 
   const pages = useMemo(() => splitIntoPages(fields), [fields]);
   const isMultiPage = pages.length > 1;
@@ -118,7 +160,7 @@ export function PreviewForm({
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await onSubmit(values);
+      await onSubmit(values, resumeToken);
       setSubmitted(true);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Couldn't submit the form");
@@ -191,6 +233,36 @@ export function PreviewForm({
           {pageIndex < pages.length - 1 ? "Next" : submitting ? "Submitting..." : "Submit"}
         </button>
       </div>
+
+      {onSaveDraft && (
+        <div className="space-y-2 border-t border-slate-100 pt-4 text-center dark:border-slate-800">
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            disabled={savingDraft}
+            className="text-xs font-medium text-brand-600 hover:underline disabled:opacity-50 dark:text-brand-400"
+          >
+            {savingDraft ? "Saving..." : "Save and finish later"}
+          </button>
+          {draftError && <p className="text-xs text-red-600 dark:text-red-400">{draftError}</p>}
+          {draftLink && (
+            <div className="rounded-lg bg-slate-50 p-2.5 text-xs dark:bg-slate-800/50">
+              <p className="text-slate-500 dark:text-slate-400">Come back anytime with this link:</p>
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  readOnly
+                  value={draftLink}
+                  onFocus={(e) => e.target.select()}
+                  className="input-field flex-1 text-xs"
+                />
+                <button type="button" onClick={handleCopyDraftLink} className="btn-secondary shrink-0 text-xs">
+                  {linkCopied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </form>
   );
 }

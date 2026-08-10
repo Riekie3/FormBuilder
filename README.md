@@ -4,14 +4,14 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a/4b/4c/4d/4e of 8** on the roadmap: core
-form building/submission, department-based roles and permissions, a
+This is **Phases 1-3 plus Phase 4a-4f of 8** on the roadmap: core form
+building/submission, department-based roles and permissions, a
 single-level approval workflow, 10 additional field types (Address, Rating,
 Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
 Matrix) plus product code naming, multi-page forms with conditional field
-logic, builder undo/redo/multi-select/copy-paste, and answer piping with
-URL query-param pre-fill. See [Roadmap](#roadmap) for what's planned in
-each later phase.
+logic, builder undo/redo/multi-select/copy-paste, answer piping with URL
+query-param pre-fill, and save-and-resume. See [Roadmap](#roadmap) for
+what's planned in each later phase.
 
 ## Stack
 
@@ -82,11 +82,12 @@ Covers the auth flow (register/login/refresh rotation/me), form CRUD,
 ownership isolation, bulk field save with id-preserving upserts, publish/public
 visibility, the public submission → response → CSV export path,
 department-wide permission boundaries (admin-route gating, view/edit/delete
-enforcement, create-permission checks), and the approval workflow (opt-in
+enforcement, create-permission checks), the approval workflow (opt-in
 validation, submission status, decision authorization, the pending-approvals
-aggregation). The auth/submission rate limiters are skipped under
-`NODE_ENV=test` so test suites that legitimately register many accounts don't
-throttle themselves.
+aggregation), and save-and-resume drafts (save/update-in-place/fetch,
+cross-form token isolation, cleanup on final submit). The auth/submission
+rate limiters are skipped under `NODE_ENV=test` so test suites that
+legitimately register many accounts don't throttle themselves.
 
 ## Project structure
 
@@ -430,6 +431,47 @@ rendered into what the visitor sees.
   confirmed both builder-side controls (the token-insert buttons and the
   URL-parameter-name input) round-trip correctly
 
+### Phase 4f — Save-and-resume ✅ done
+
+A visitor can save a partially-completed public submission and pick it back
+up later from a link, without ever creating a half-finished `Response`.
+
+- New `DraftResponse` model — deliberately separate from `Response`/`Answer`
+  rather than an "incomplete" response, so a draft never appears in the
+  responses table, never counts toward `responseCount`, and never needs an
+  approval status. Its `answers` column is a single JSON blob (`{ [fieldId]:
+  value }`), not normalized `Answer` rows, since a draft is transient
+  scratch state, not the durable per-field record a real submission is
+- The token is the entire access control, same trust model as the public
+  submission endpoint itself: unauthenticated, unguessable (`cuid`). There
+  is no cleanup job yet — abandoned drafts persist indefinitely, a
+  documented, deliberate limitation rather than an oversight
+- `POST /forms/:slug/draft` creates a draft (no token in the request) or
+  updates one in place (token supplied) — a visitor clicking "Save and
+  finish later" repeatedly updates the same row instead of accumulating one
+  per click. `GET /forms/:slug/draft/:token` fetches it back for resuming.
+  The real submission endpoint accepts an optional `resumeToken` and
+  deletes the matching draft once the submission succeeds
+- `PublicFormClient.tsx` reads `?resume=token` from the URL, fetches the
+  draft, and merges its answers into `PreviewForm`'s `initialValues` —
+  taking priority over any `prefillKey` URL pre-fill, since a resumed
+  visitor's actual saved progress should win over generic pre-fill hints.
+  A resumed draft's answers are ordinary answers as far as required-field
+  validation and later re-saves are concerned, no special-casing needed
+- An invalid or expired resume token degrades to "That saved link couldn't
+  be found — starting fresh" rather than a broken page
+- 6 new API tests: save/fetch round-trip, update-in-place instead of
+  duplicating, 404 on a missing or cross-form token, draft deletion on
+  final submit, an unrelated draft surviving a submission that didn't
+  reference it, and 404 for both draft endpoints on an unpublished form
+- Verified end-to-end in the browser on a real 2-page form: filled page 1,
+  saved a draft mid-fill, copied the resulting resume link, loaded it in a
+  fresh navigation and confirmed the saved answer restored into the input
+  (not just displayed — read the DOM value directly), completed page 2 and
+  submitted, then confirmed both that the response recorded correctly and
+  that the draft was actually deleted server-side afterward; separately
+  confirmed the invalid-token fallback path
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
@@ -450,21 +492,18 @@ rendered into what the visitor sees.
   print view modes
 - **One-question-per-page "conversational" layout**: a form display mode
   variant on top of multi-page forms, one field per screen
-- **Save-and-resume**: a partially-completed public submission can be saved
-  and continued later via a resume link/token
 - **Multilingual forms**: translate a form's labels/text for multiple
   locales — real i18n infrastructure, needs its own scoping pass before
   estimating (translation storage model, locale switcher UX, whether
   submissions record which locale was used)
 
-(The builder UX polish and the two items below it — one-question-per-page
-and save-and-resume — are sourced from a competitive review of Jotform's
-public features page and their open-source `dnd-builder` library — not
-from their closed-source product code, which
-isn't public. Deliberately not chasing from that same review: 200+ native
-integrations — our Phase 8 webhooks/API let users wire up Zapier/Make
-themselves instead — HIPAA compliance, and offline mobile collection; all
-disproportionate effort for now.)
+(The builder UX polish and the one-question-per-page item below it are
+sourced from a competitive review of Jotform's public features page and
+their open-source `dnd-builder` library — not from their closed-source
+product code, which isn't public. Deliberately not chasing from that same
+review: 200+ native integrations — our Phase 8 webhooks/API let users wire
+up Zapier/Make themselves instead — HIPAA compliance, and offline mobile
+collection; all disproportionate effort for now.)
 
 ### Phase 5 — Dashboard, Reporting & Data Lifecycle ⬜ not started
 

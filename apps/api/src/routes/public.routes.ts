@@ -23,6 +23,17 @@ function toFieldDto(field: PrismaField): FieldDto {
 
 const submitSchema = z.object({
   answers: z.array(z.object({ fieldId: z.string(), value: z.string().max(10000) })).max(200),
+  // Present when this submission finishes a previously-saved draft — lets
+  // the server clean up the now-redundant DraftResponse in the same request.
+  resumeToken: z.string().optional(),
+});
+
+const draftSaveSchema = z.object({
+  // Absent on the first save (a new draft is created and its token
+  // returned); present on every save after that to update in place instead
+  // of accumulating a new row per autosave/click.
+  token: z.string().optional(),
+  answers: z.array(z.object({ fieldId: z.string(), value: z.string().max(10000) })).max(200),
 });
 
 publicRouter.get(
@@ -83,6 +94,55 @@ publicRouter.post(
       },
     });
 
+    if (body.resumeToken) {
+      // Best-effort: a missing/mismatched token just means there was nothing
+      // to clean up, not a failed submission.
+      await prisma.draftResponse.deleteMany({ where: { token: body.resumeToken, formId: form.id } });
+    }
+
     res.status(201).json({ ok: true });
+  }),
+);
+
+publicRouter.post(
+  "/forms/:slug/draft",
+  publicSubmissionRateLimit,
+  asyncHandler(async (req, res) => {
+    const form = await prisma.form.findUnique({ where: { slug: req.params.slug } });
+    if (!form || form.status !== "PUBLISHED") {
+      throw new HttpError(404, "This form isn't available");
+    }
+
+    const body = draftSaveSchema.parse(req.body);
+    const answers = Object.fromEntries(body.answers.map((a) => [a.fieldId, a.value]));
+
+    if (body.token) {
+      const existing = await prisma.draftResponse.findUnique({ where: { token: body.token } });
+      if (existing && existing.formId === form.id) {
+        await prisma.draftResponse.update({ where: { token: body.token }, data: { answers } });
+        res.json({ token: body.token });
+        return;
+      }
+    }
+
+    const draft = await prisma.draftResponse.create({ data: { formId: form.id, answers } });
+    res.status(201).json({ token: draft.token });
+  }),
+);
+
+publicRouter.get(
+  "/forms/:slug/draft/:token",
+  asyncHandler(async (req, res) => {
+    const form = await prisma.form.findUnique({ where: { slug: req.params.slug } });
+    if (!form || form.status !== "PUBLISHED") {
+      throw new HttpError(404, "This form isn't available");
+    }
+
+    const draft = await prisma.draftResponse.findUnique({ where: { token: req.params.token } });
+    if (!draft || draft.formId !== form.id) {
+      throw new HttpError(404, "This saved draft isn't available");
+    }
+
+    res.json({ answers: draft.answers as Record<string, string> });
   }),
 );

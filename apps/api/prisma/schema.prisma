@@ -142,6 +142,7 @@ model Form {
   productCode String?
   fields      Field[]
   responses   Response[]
+  drafts      DraftResponse[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -194,6 +195,26 @@ model Answer {
 
   @@index([responseId])
   @@index([fieldId])
+}
+
+// A partially-completed public submission the visitor chose to save for
+// later — deliberately separate from Response/Answer rather than an
+// "incomplete" Response, so a draft never shows up in the responses table,
+// never counts toward responseCount, and never needs an approval status.
+// The token is the entire access control: unauthenticated, unguessable
+// (cuid), same trust model as the public submission endpoint itself — there
+// is no accompanying cleanup job yet, so abandoned drafts persist
+// indefinitely (a documented, deliberate limitation, not an oversight).
+model DraftResponse {
+  id        String   @id @default(cuid())
+  formId    String
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  token     String   @unique @default(cuid())
+  answers   Json     // { [fieldId]: value } — same shape values take in the builder's `values` state
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([formId])
 }
 
 model Template {
