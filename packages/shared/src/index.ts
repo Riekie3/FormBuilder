@@ -231,6 +231,9 @@ export interface FormSummaryDto {
   // Can the *current* user decide on this form's pending responses?
   canApprove: boolean;
   pendingCount: number;
+  // "Conversational" display: one real question per page instead of the
+  // PAGE_BREAK-grouped layout — see the Form model for the full rule.
+  oneQuestionPerPage: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -246,6 +249,7 @@ export interface PublicFormDto {
   description: string | null;
   fields: FieldDto[];
   requiresApproval: boolean;
+  oneQuestionPerPage: boolean;
 }
 
 export interface AnswerDto {

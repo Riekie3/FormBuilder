@@ -401,6 +401,7 @@ export function useFormBuilder(formId: string) {
       requiresApproval?: boolean;
       approverRoleId?: string | null;
       productCode?: string | null;
+      oneQuestionPerPage?: boolean;
     }) => {
       const res = await authFetch(`/api/forms/${formId}`, { method: "PATCH", body: JSON.stringify(patch) });
       if (res.ok) {

@@ -140,6 +140,11 @@ model Form {
   // Free-text tag/reference code for the owner's own organization (SOW 2.7
   // "product code naming") — never shown to public form visitors.
   productCode String?
+  // "Conversational" display mode: the public form shows one real question
+  // per page (any layout content directly ahead of it rides along), instead
+  // of the fields-grouped-by-PAGE_BREAK layout. Manual PAGE_BREAK fields are
+  // simply ignored while this is on, not double-applied.
+  oneQuestionPerPage Boolean @default(false)
   fields      Field[]
   responses   Response[]
   drafts      DraftResponse[]

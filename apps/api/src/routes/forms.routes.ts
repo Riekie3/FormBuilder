@@ -89,6 +89,7 @@ async function toSummaryDto(
     approverRoleName: form.approverRole?.name ?? null,
     canApprove,
     pendingCount,
+    oneQuestionPerPage: form.oneQuestionPerPage,
     createdAt: form.createdAt.toISOString(),
     updatedAt: form.updatedAt.toISOString(),
   };
@@ -107,6 +108,7 @@ const updateFormSchema = z.object({
   requiresApproval: z.boolean().optional(),
   approverRoleId: z.string().nullable().optional(),
   productCode: z.string().trim().max(120).nullable().optional(),
+  oneQuestionPerPage: z.boolean().optional(),
 });
 
 const fieldOptionSchema = z.object({
@@ -341,6 +343,7 @@ formsRouter.patch(
         ...(body.requiresApproval !== undefined ? { requiresApproval: body.requiresApproval } : {}),
         approverRoleId: nextRequiresApproval ? nextApproverRoleId : null,
         ...(body.productCode !== undefined ? { productCode: body.productCode || null } : {}),
+        ...(body.oneQuestionPerPage !== undefined ? { oneQuestionPerPage: body.oneQuestionPerPage } : {}),
       },
       include: FORM_INCLUDE,
     });

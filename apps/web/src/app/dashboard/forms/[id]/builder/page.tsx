@@ -221,6 +221,21 @@ function BuilderContent() {
               />
               <p className="text-xs text-slate-400">Your own reference code — never shown to visitors.</p>
             </div>
+            <div className="card space-y-2 p-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Layout</h3>
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={form.oneQuestionPerPage}
+                  onChange={(e) => updateFormMetaImmediate({ oneQuestionPerPage: e.target.checked })}
+                  className="h-4 w-4 rounded accent-brand-500"
+                />
+                One question per page
+              </label>
+              <p className="text-xs text-slate-400">
+                Shows each question on its own page instead of grouping by Page Break fields.
+              </p>
+            </div>
             <ApprovalSettings form={form} onUpdate={updateFormMetaImmediate} />
             <FieldSettingsPanel
               field={selectedField}
@@ -240,6 +255,7 @@ function BuilderContent() {
           description={form.description}
           fields={fields}
           onClose={() => setShowPreview(false)}
+          oneQuestionPerPage={form.oneQuestionPerPage}
         />
       )}
     </DndProvider>

@@ -89,6 +89,22 @@ describe("forms", () => {
     expect(publishedPublicRes.body.form.fields).toHaveLength(1);
   });
 
+  it("defaults oneQuestionPerPage to false and toggles it via PATCH", async () => {
+    const createRes = await auth(request(app).post("/api/forms")).send({ title: "Layout Test" });
+    const formId = createRes.body.form.id as string;
+    const slug = createRes.body.form.slug as string;
+    expect(createRes.body.form.oneQuestionPerPage).toBe(false);
+
+    const patchRes = await auth(request(app).patch(`/api/forms/${formId}`)).send({
+      status: "PUBLISHED",
+      oneQuestionPerPage: true,
+    });
+    expect(patchRes.body.form.oneQuestionPerPage).toBe(true);
+
+    const publicRes = await request(app).get(`/api/public/forms/${slug}`);
+    expect(publicRes.body.form.oneQuestionPerPage).toBe(true);
+  });
+
   it("accepts a valid public submission and rejects one missing a required field", async () => {
     const createRes = await auth(request(app).post("/api/forms")).send({ title: "Submission Test" });
     const formId = createRes.body.form.id as string;

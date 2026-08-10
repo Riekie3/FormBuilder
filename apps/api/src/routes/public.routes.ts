@@ -51,6 +51,7 @@ publicRouter.get(
       description: form.description,
       fields: fields.map(toFieldDto),
       requiresApproval: form.requiresApproval,
+      oneQuestionPerPage: form.oneQuestionPerPage,
     };
     res.json({ form: dto });
   }),

@@ -4,14 +4,15 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a-4g of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a-4h of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a
 single-level approval workflow, 10 additional field types (Address, Rating,
 Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
 Matrix) plus product code naming, multi-page forms with conditional field
 logic, builder undo/redo/multi-select/copy-paste, answer piping with URL
-query-param pre-fill, save-and-resume, and custom field validation rules.
-See [Roadmap](#roadmap) for what's planned in each later phase.
+query-param pre-fill, save-and-resume, custom field validation rules, and
+a one-question-per-page conversational layout. See [Roadmap](#roadmap)
+for what's planned in each later phase.
 
 ## Stack
 
@@ -520,6 +521,34 @@ content-shape constraints.
   Number range, non-numeric rejection, Text length, Text format, Email
   format, and the required-vs-format-independent distinction
 
+### Phase 4h — One-question-per-page conversational layout ✅ done
+
+A form display mode where every real question gets its own page — the
+Typeform-style "conversational" layout — built directly on top of the
+Phase 4b multi-page infrastructure rather than as a separate system.
+
+- `Form.oneQuestionPerPage` (boolean, default `false`): a per-form toggle
+  in a new "Layout" settings card in the builder, alongside Product code
+  and Approval workflow
+- `splitIntoPages()` in `apps/web/src/lib/formPages.ts` grew a second mode
+  rather than a second function: when enabled, a new page starts before
+  every real question, but any layout content directly ahead of it (a
+  Heading, a Rich Text blurb) rides along on the same page instead of
+  getting a blank page of its own — a page showing only a heading with a
+  Next button and no actual question would be poor UX. Manual `PAGE_BREAK`
+  fields are simply ignored while this is on rather than double-applied
+- Threaded through the same `oneQuestionPerPage` prop on `PreviewForm` in
+  both the public form (`PublicFormClient`) and the builder's own live
+  Preview modal, so what the builder previews always matches what a
+  visitor actually sees
+- Verified end-to-end: built a 3-field form (Heading + Name, Email, Age)
+  with the toggle on, confirmed the public form showed exactly 3 pages
+  with the Heading correctly grouped onto page 1 with Name (not a 4th,
+  heading-only page), completed and submitted it successfully, and
+  confirmed the builder's own Preview modal shows the identical pagination
+  live, without needing to publish first. 1 new API test covers the
+  default-off/toggle/public-exposure round-trip
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
@@ -537,20 +566,18 @@ content-shape constraints.
 - **Builder UX polish** (from Jotform's open-source `dnd-builder` library):
   field resizing, alignment guides, and distinct builder/preview/presentation/
   print view modes
-- **One-question-per-page "conversational" layout**: a form display mode
-  variant on top of multi-page forms, one field per screen
 - **Multilingual forms**: translate a form's labels/text for multiple
   locales — real i18n infrastructure, needs its own scoping pass before
   estimating (translation storage model, locale switcher UX, whether
   submissions record which locale was used)
 
-(The builder UX polish and the one-question-per-page item below it are
-sourced from a competitive review of Jotform's public features page and
-their open-source `dnd-builder` library — not from their closed-source
-product code, which isn't public. Deliberately not chasing from that same
-review: 200+ native integrations — our Phase 8 webhooks/API let users wire
-up Zapier/Make themselves instead — HIPAA compliance, and offline mobile
-collection; all disproportionate effort for now.)
+(The builder UX polish item above is sourced from a competitive review of
+Jotform's public features page and their open-source `dnd-builder`
+library — not from their closed-source product code, which isn't public.
+Deliberately not chasing from that same review: 200+ native integrations
+— our Phase 8 webhooks/API let users wire up Zapier/Make themselves
+instead — HIPAA compliance, and offline mobile collection; all
+disproportionate effort for now.)
 
 ### Phase 5 — Dashboard, Reporting & Data Lifecycle ⬜ not started
 

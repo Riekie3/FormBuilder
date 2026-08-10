@@ -25,6 +25,8 @@ interface Props {
   // this) — persists the current answers as a resumable draft and returns
   // its token plus the full shareable resume link.
   onSaveDraft?: (answers: Record<string, string>, token: string | null) => Promise<{ token: string; link: string }>;
+  // "Conversational" display: one real question per page. See formPages.ts.
+  oneQuestionPerPage?: boolean;
 }
 
 // Renders a fillable form. In "preview" mode (used by the builder) submissions
@@ -42,6 +44,7 @@ export function PreviewForm({
   initialValues,
   initialResumeToken,
   onSaveDraft,
+  oneQuestionPerPage = false,
 }: Props) {
   const [values, setValues] = useState<Record<string, string>>(() => initialValues ?? {});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -82,7 +85,7 @@ export function PreviewForm({
     }
   }
 
-  const pages = useMemo(() => splitIntoPages(fields), [fields]);
+  const pages = useMemo(() => splitIntoPages(fields, oneQuestionPerPage), [fields, oneQuestionPerPage]);
   const isMultiPage = pages.length > 1;
 
   // Keep the current page in range if the field list shrinks out from under it.

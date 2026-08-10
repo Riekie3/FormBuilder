@@ -105,6 +105,7 @@ export function PublicFormClient({ slug, form }: { slug: string; form: PublicFor
         initialValues={initialValues}
         initialResumeToken={draftLoadError ? null : resumeToken}
         onSaveDraft={handleSaveDraft}
+        oneQuestionPerPage={form.oneQuestionPerPage}
       />
     </>
   );
