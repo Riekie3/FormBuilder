@@ -16,6 +16,7 @@ import {
   Phone,
   PenLine,
   Star,
+  Table2,
   Type,
   type LucideIcon,
 } from "lucide-react";
@@ -41,4 +42,5 @@ export const FIELD_TYPE_ICONS: Record<FieldType, LucideIcon> = {
   RICH_TEXT: AlignLeft,
   CALCULATION: Calculator,
   PAGE_BREAK: FileStack,
+  MATRIX: Table2,
 };

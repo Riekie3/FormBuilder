@@ -21,6 +21,7 @@ export const FIELD_TYPES = [
   "RICH_TEXT",
   "CALCULATION",
   "PAGE_BREAK",
+  "MATRIX",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -47,6 +48,8 @@ export interface FieldConfig {
   // current answers. Absent/empty = always shown. Not offered on PAGE_BREAK
   // fields (they're a structural marker, not visitor-facing content).
   conditions?: FieldCondition[];
+  matrixRows?: FieldOption[]; // MATRIX — one row per item being rated; `value` unused, id/label only
+  matrixColumns?: FieldOption[]; // MATRIX — the answer options shown across the top of every row
 }
 
 export interface FieldCondition {
@@ -99,6 +102,29 @@ export function isFieldVisible(field: Pick<FieldDto, "config">, values: Record<s
         return true;
     }
   });
+}
+
+// A Matrix field stores one answer per row as JSON: { [rowId]: columnValue }.
+// "Required" means every row needs an answer, not just that the field has
+// *some* value — a visitor who only rated 2 of 5 rows hasn't really answered it.
+export function isMatrixAnswerComplete(rows: FieldOption[], rawValue: string | undefined): boolean {
+  if (!rawValue) return false;
+  let answers: Record<string, string>;
+  try {
+    answers = JSON.parse(rawValue) as Record<string, string>;
+  } catch {
+    return false;
+  }
+  return rows.length > 0 && rows.every((row) => !!answers[row.id]);
+}
+
+// Whether `value` counts as a real answer to `field`, for required-field
+// validation. Almost every type is just "non-empty string", but Matrix needs
+// every row answered — used identically by the client (what to flag) and the
+// server (what to actually reject), so the two can't disagree.
+export function isFieldAnswerComplete(field: Pick<FieldDto, "type" | "config">, value: string | undefined): boolean {
+  if (field.type === "MATRIX") return isMatrixAnswerComplete(field.config.matrixRows ?? [], value);
+  return !!value?.trim();
 }
 
 export interface FieldDto {
@@ -242,6 +268,7 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   RICH_TEXT: "Rich Text",
   CALCULATION: "Calculation",
   PAGE_BREAK: "Page Break",
+  MATRIX: "Matrix",
 };
 
 export function fieldSupportsOptions(type: FieldType): boolean {

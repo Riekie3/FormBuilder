@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { asyncHandler, HttpError } from "../middleware/errorHandler";
 import { publicSubmissionRateLimit } from "../middleware/rateLimit";
 import { sha256Hex } from "../lib/hash";
-import { isComputedField, isFieldVisible, isLayoutField } from "@sfb/shared";
+import { isComputedField, isFieldAnswerComplete, isFieldVisible, isLayoutField } from "@sfb/shared";
 import type { FieldDto, PublicFormDto } from "@sfb/shared";
 import type { Field as PrismaField } from "@prisma/client";
 
@@ -66,7 +66,7 @@ publicRouter.post(
       // from required-ness — the server must agree with what the client
       // actually showed, evaluated against the same submitted answers.
       if (!isFieldVisible(toFieldDto(field), answersByFieldId)) continue;
-      if (field.required && !valueByFieldId.get(field.id)?.trim()) {
+      if (field.required && !isFieldAnswerComplete(toFieldDto(field), valueByFieldId.get(field.id))) {
         throw new HttpError(400, `"${field.label}" is required`);
       }
     }

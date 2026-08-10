@@ -30,6 +30,15 @@ function parseAddress(raw: string): AddressValue {
   }
 }
 
+function parseMatrix(raw: string): Record<string, string> {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
 // Shared between the builder's live preview and the public form renderer so
 // field behavior never drifts between "what you designed" and "what visitors see".
 export function FormFieldRenderer({ field, value, onChange, error, disabled }: Props) {
@@ -303,6 +312,49 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled }: P
           {value || "0"}
         </div>,
       );
+
+    case "MATRIX": {
+      const rows = field.config.matrixRows ?? [];
+      const columns = field.config.matrixColumns ?? [];
+      const answers = parseMatrix(value);
+      const setRow = (rowId: string, columnValue: string) => onChange(JSON.stringify({ ...answers, [rowId]: columnValue }));
+      return wrap(
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[400px] border-collapse text-sm">
+            <thead>
+              <tr>
+                <th className="p-2 text-left" />
+                {columns.map((col) => (
+                  <th key={col.id} className="p-2 text-center font-medium text-slate-500 dark:text-slate-400">
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-t border-slate-100 dark:border-slate-800">
+                  <td className="p-2 text-slate-700 dark:text-slate-300">{row.label}</td>
+                  {columns.map((col) => (
+                    <td key={col.id} className="p-2 text-center">
+                      <input
+                        type="radio"
+                        name={`${field.id}-${row.id}`}
+                        checked={answers[row.id] === col.value}
+                        disabled={disabled}
+                        onChange={() => setRow(row.id, col.value)}
+                        className="h-4 w-4 accent-brand-500"
+                        aria-label={`${row.label}: ${col.label}`}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+    }
 
     case "TEXT":
     default:

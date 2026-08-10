@@ -32,6 +32,7 @@ enum FieldType {
   RICH_TEXT
   CALCULATION
   PAGE_BREAK
+  MATRIX
 }
 
 enum FormStatus {

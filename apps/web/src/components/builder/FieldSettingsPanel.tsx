@@ -50,7 +50,12 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
   // Only fields earlier in the form can be a condition's trigger — a field
   // can't meaningfully depend on an answer the visitor hasn't given yet.
   const conditionCandidates = allFields.filter(
-    (f) => f.id !== field.id && f.order < field.order && !isLayoutField(f.type) && !isComputedField(f.type),
+    (f) =>
+      f.id !== field.id &&
+      f.order < field.order &&
+      !isLayoutField(f.type) &&
+      !isComputedField(f.type) &&
+      f.type !== "MATRIX",
   );
   const condition = field.config.conditions?.[0];
   const conditionTarget = condition ? allFields.find((f) => f.id === condition.fieldId) : undefined;
@@ -84,6 +89,55 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
   function insertFormulaToken(fieldId: string) {
     if (!field) return;
     onChange({ config: { ...field.config, formula: `${field.config.formula ?? ""}{${fieldId}}` } });
+  }
+
+  const matrixRows = field.config.matrixRows ?? [];
+  const matrixColumns = field.config.matrixColumns ?? [];
+
+  function updateMatrixRow(id: string, label: string) {
+    if (!field) return;
+    onChange({ config: { ...field.config, matrixRows: matrixRows.map((r) => (r.id === id ? { ...r, label } : r)) } });
+  }
+
+  function addMatrixRow() {
+    if (!field) return;
+    const n = matrixRows.length + 1;
+    onChange({
+      config: { ...field.config, matrixRows: [...matrixRows, { id: crypto.randomUUID(), label: `Row ${n}`, value: `row-${n}` }] },
+    });
+  }
+
+  function removeMatrixRow(id: string) {
+    if (!field) return;
+    onChange({ config: { ...field.config, matrixRows: matrixRows.filter((r) => r.id !== id) } });
+  }
+
+  function updateMatrixColumn(id: string, label: string) {
+    if (!field) return;
+    onChange({
+      config: {
+        ...field.config,
+        matrixColumns: matrixColumns.map((c) =>
+          c.id === id ? { ...c, label, value: label.toLowerCase().replace(/\s+/g, "-") } : c,
+        ),
+      },
+    });
+  }
+
+  function addMatrixColumn() {
+    if (!field) return;
+    const n = matrixColumns.length + 1;
+    onChange({
+      config: {
+        ...field.config,
+        matrixColumns: [...matrixColumns, { id: crypto.randomUUID(), label: `Column ${n}`, value: `column-${n}` }],
+      },
+    });
+  }
+
+  function removeMatrixColumn(id: string) {
+    if (!field) return;
+    onChange({ config: { ...field.config, matrixColumns: matrixColumns.filter((c) => c.id !== id) } });
   }
 
   function toggleCondition(enabled: boolean) {
@@ -278,6 +332,61 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
           <button type="button" onClick={addOption} className="btn-secondary mt-2 w-full text-xs">
             <Plus size={14} /> Add option
           </button>
+        </div>
+      )}
+
+      {field.type === "MATRIX" && (
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Rows</label>
+            <div className="space-y-2">
+              {matrixRows.map((row) => (
+                <div key={row.id} className="flex items-center gap-2">
+                  <input
+                    className="input-field flex-1"
+                    value={row.label}
+                    onChange={(e) => updateMatrixRow(row.id, e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeMatrixRow(row.id)}
+                    className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+                    aria-label="Remove row"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={addMatrixRow} className="btn-secondary mt-2 w-full text-xs">
+              <Plus size={14} /> Add row
+            </button>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Columns</label>
+            <div className="space-y-2">
+              {matrixColumns.map((col) => (
+                <div key={col.id} className="flex items-center gap-2">
+                  <input
+                    className="input-field flex-1"
+                    value={col.label}
+                    onChange={(e) => updateMatrixColumn(col.id, e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeMatrixColumn(col.id)}
+                    className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+                    aria-label="Remove column"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={addMatrixColumn} className="btn-secondary mt-2 w-full text-xs">
+              <Plus size={14} /> Add column
+            </button>
+          </div>
         </div>
       )}
 

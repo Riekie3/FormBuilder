@@ -134,6 +134,8 @@ const fieldConfigSchema = z.object({
   formula: z.string().max(1000).optional(),
   precision: z.number().int().min(0).max(6).optional(),
   conditions: z.array(fieldConditionSchema).max(5).optional(),
+  matrixRows: z.array(fieldOptionSchema).max(30).optional(),
+  matrixColumns: z.array(fieldOptionSchema).max(10).optional(),
 });
 
 const fieldInputSchema = z.object({

@@ -4,13 +4,13 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a/4b/4c of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a/4b/4c/4d of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a single-level
-approval workflow, 9 additional field types (Address, Rating, Signature,
-Divider, Heading, HTML Block, Hidden, Rich Text, Calculation) plus product
-code naming, multi-page forms with conditional field logic, and builder
-undo/redo, multi-select, and copy/paste. See [Roadmap](#roadmap) for what's
-planned in each later phase.
+approval workflow, 10 additional field types (Address, Rating, Signature,
+Divider, Heading, HTML Block, Hidden, Rich Text, Calculation, Matrix) plus
+product code naming, multi-page forms with conditional field logic, and
+builder undo/redo, multi-select, and copy/paste. See [Roadmap](#roadmap) for
+what's planned in each later phase.
 
 ## Stack
 
@@ -345,6 +345,46 @@ touches what a form *is*, only how it's edited.
   browser-confirmed. The reorder mechanism itself is untouched pre-existing
   code; only the history bookkeeping around it is new.
 
+### Phase 4d — Matrix field ✅ done
+
+A ratings-grid field type — one row per item, one set of columns as the
+shared answer scale (e.g. Poor/Fair/Good across the top, one row per
+feature being rated). This is what Jotform calls a "Matrix" field, and it's
+the most common thing people mean by "table" in a form builder — distinct
+from a repeatable/variable-row line-items table, which is a bigger,
+not-yet-built feature (new answer-storage shape, add/remove-row UI, CSV
+export changes) noted below in the continuation list.
+
+- `FieldConfig.matrixRows` / `matrixColumns` (both reuse the existing
+  `FieldOption` shape): rows define what's being rated, columns define the
+  shared answer scale
+- One answer per row, stored as a single JSON string keyed by row id —
+  `{ [rowId]: columnValue }` — following the same "composite value as JSON"
+  convention as the Address field, so no `Answer` schema change was needed
+- **Required means every row answered**, not just "the field has some
+  value" — a visitor who rated 2 of 5 rows hasn't really answered it. This
+  needed a real shared helper (`isFieldAnswerComplete()` in
+  `packages/shared`) rather than the simple non-empty-string check every
+  other type used, since "is this answer complete" is now type-dependent.
+  Used identically by the client (`PreviewForm.validate()`) and the server
+  (`public.routes.ts`), so the two can't disagree about what counts as answered
+- Builder settings panel gets add/remove editors for both rows and columns,
+  mirroring the existing Options editor pattern used by Dropdown/Radio/Checkbox
+- Not offered as a conditional-logic trigger field — its answer is a JSON
+  blob, and exposing that for `equals`/`contains` comparison without a
+  dedicated per-row selector would be more confusing than useful
+- Responses table and CSV export follow the established convention: the
+  table shows `Row label: Column label` pairs, CSV export keeps the raw
+  JSON (keyed by row id, not row label, so it stays stable if a row is
+  ever relabeled)
+- Verified end-to-end: built a Matrix field in the browser (3 rows × 3
+  columns, one row renamed, marked required), confirmed the client blocks
+  submission with 2 of 3 rows answered and accepts it with all 3; separately
+  confirmed the server rejects the same incomplete answer directly against
+  the public API (bypassing the client entirely); confirmed the responses
+  table renders it as readable `label: label` pairs and CSV export keeps
+  the raw row-id-keyed JSON
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
@@ -352,6 +392,12 @@ touches what a form *is*, only how it's edited.
   prefix-based autocomplete. Needs a clarified functional spec before
   estimating — open questions: is the dataset reusable across forms or
   scoped to one field, who can edit it, what happens with ambiguous prefixes
+- **Repeatable row table**: a visitor-editable line-items table (e.g.
+  Product/Qty/Price columns with an "Add row" button) — distinct from the
+  fixed-grid Matrix field shipped in Phase 4d. Needs a variable-length
+  answer shape (today every field stores exactly one `Answer` value per
+  response), a repeater UI with add/remove row, and CSV export changes to
+  flatten a variable number of rows into columns
 - Nested sections within a page
 - Custom validation rules
 - **Builder UX polish** (from Jotform's open-source `dnd-builder` library):

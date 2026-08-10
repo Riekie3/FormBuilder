@@ -24,7 +24,12 @@ function cloneField(f: FieldDto, overrides: Partial<FieldDto> = {}): FieldDto {
   return {
     ...f,
     id: tempId(),
-    config: { ...f.config, options: f.config.options?.map((o) => ({ ...o })) },
+    config: {
+      ...f.config,
+      options: f.config.options?.map((o) => ({ ...o })),
+      matrixRows: f.config.matrixRows?.map((r) => ({ ...r })),
+      matrixColumns: f.config.matrixColumns?.map((c) => ({ ...c })),
+    },
     ...overrides,
   };
 }
@@ -41,6 +46,19 @@ function defaultConfigFor(type: FieldType) {
   if (type === "CALCULATION") return { formula: "", precision: 2 };
   if (type === "HTML_BLOCK") return { htmlContent: "" };
   if (type === "RICH_TEXT") return { richText: "" };
+  if (type === "MATRIX") {
+    const matrixRows: FieldOption[] = [
+      { id: crypto.randomUUID(), label: "Row 1", value: "row-1" },
+      { id: crypto.randomUUID(), label: "Row 2", value: "row-2" },
+      { id: crypto.randomUUID(), label: "Row 3", value: "row-3" },
+    ];
+    const matrixColumns: FieldOption[] = [
+      { id: crypto.randomUUID(), label: "Poor", value: "poor" },
+      { id: crypto.randomUUID(), label: "Fair", value: "fair" },
+      { id: crypto.randomUUID(), label: "Good", value: "good" },
+    ];
+    return { matrixRows, matrixColumns };
+  }
   return {};
 }
 

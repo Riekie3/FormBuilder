@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { FieldDto } from "@sfb/shared";
-import { isComputedField, isFieldVisible, isLayoutField } from "@sfb/shared";
+import { isComputedField, isFieldAnswerComplete, isFieldVisible, isLayoutField } from "@sfb/shared";
 import { FormFieldRenderer } from "@/components/FormFieldRenderer";
 import { evaluateFormula } from "@/lib/safeFormula";
 import { splitIntoPages } from "@/lib/formPages";
@@ -77,7 +77,7 @@ export function PreviewForm({ title, description, fields, mode = "live", onSubmi
     const pageErrors: Record<string, string> = {};
     for (const f of visible) {
       if (isLayoutField(f.type) || isComputedField(f.type)) continue;
-      if (f.required && !values[f.id]?.trim()) {
+      if (f.required && !isFieldAnswerComplete(f, values[f.id])) {
         pageErrors[f.id] = "This field is required";
       }
     }
