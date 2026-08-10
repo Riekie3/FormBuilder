@@ -22,6 +22,7 @@ export const FIELD_TYPES = [
   "CALCULATION",
   "PAGE_BREAK",
   "MATRIX",
+  "REPEATER",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -64,6 +65,7 @@ export interface FieldConfig {
   // backtracking); a closed set of hand-picked, linear-time patterns has no
   // such risk. TEXT only.
   format?: "any" | "letters" | "numbers" | "alphanumeric";
+  repeaterColumns?: FieldOption[]; // REPEATER — the line-items table's columns; `value` unused like matrixRows
 }
 
 export interface FieldCondition {
@@ -132,12 +134,30 @@ export function isMatrixAnswerComplete(rows: FieldOption[], rawValue: string | u
   return rows.length > 0 && rows.every((row) => !!answers[row.id]);
 }
 
+// A Repeater (line-items table) field stores its answer as a JSON array of
+// row objects: [{ [columnId]: value }, ...]. "Required" here just means at
+// least one row exists — not that every cell in it is filled — since a
+// visitor who added one line item has meaningfully answered the field even
+// if they left an optional column blank on that row.
+export function isRepeaterAnswerComplete(rawValue: string | undefined): boolean {
+  if (!rawValue) return false;
+  let rows: unknown;
+  try {
+    rows = JSON.parse(rawValue);
+  } catch {
+    return false;
+  }
+  return Array.isArray(rows) && rows.length > 0;
+}
+
 // Whether `value` counts as a real answer to `field`, for required-field
 // validation. Almost every type is just "non-empty string", but Matrix needs
-// every row answered — used identically by the client (what to flag) and the
-// server (what to actually reject), so the two can't disagree.
+// every row answered and Repeater needs at least one row — used identically
+// by the client (what to flag) and the server (what to actually reject), so
+// the two can't disagree.
 export function isFieldAnswerComplete(field: Pick<FieldDto, "type" | "config">, value: string | undefined): boolean {
   if (field.type === "MATRIX") return isMatrixAnswerComplete(field.config.matrixRows ?? [], value);
+  if (field.type === "REPEATER") return isRepeaterAnswerComplete(value);
   return !!value?.trim();
 }
 
@@ -343,6 +363,7 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   CALCULATION: "Calculation",
   PAGE_BREAK: "Page Break",
   MATRIX: "Matrix",
+  REPEATER: "Line Items",
 };
 
 export function fieldSupportsOptions(type: FieldType): boolean {

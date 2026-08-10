@@ -29,6 +29,7 @@ function cloneField(f: FieldDto, overrides: Partial<FieldDto> = {}): FieldDto {
       options: f.config.options?.map((o) => ({ ...o })),
       matrixRows: f.config.matrixRows?.map((r) => ({ ...r })),
       matrixColumns: f.config.matrixColumns?.map((c) => ({ ...c })),
+      repeaterColumns: f.config.repeaterColumns?.map((c) => ({ ...c })),
     },
     ...overrides,
   };
@@ -58,6 +59,14 @@ function defaultConfigFor(type: FieldType) {
       { id: crypto.randomUUID(), label: "Good", value: "good" },
     ];
     return { matrixRows, matrixColumns };
+  }
+  if (type === "REPEATER") {
+    const repeaterColumns: FieldOption[] = [
+      { id: crypto.randomUUID(), label: "Item", value: "item" },
+      { id: crypto.randomUUID(), label: "Quantity", value: "quantity" },
+      { id: crypto.randomUUID(), label: "Price", value: "price" },
+    ];
+    return { repeaterColumns };
   }
   return {};
 }

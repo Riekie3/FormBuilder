@@ -1,6 +1,7 @@
 "use client";
 
 import DOMPurify from "dompurify";
+import { Plus, Trash2 } from "lucide-react";
 import type { FieldDto } from "@sfb/shared";
 import { pipeAnswers } from "@/lib/answerPiping";
 import { renderSafeMarkdown } from "@/lib/safeMarkdown";
@@ -42,6 +43,16 @@ function parseMatrix(raw: string): Record<string, string> {
     return JSON.parse(raw) as Record<string, string>;
   } catch {
     return {};
+  }
+}
+
+function parseRepeaterRows(raw: string): Record<string, string>[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
 }
 
@@ -369,6 +380,65 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled, all
               ))}
             </tbody>
           </table>
+        </div>,
+      );
+    }
+
+    case "REPEATER": {
+      const columns = field.config.repeaterColumns ?? [];
+      const rows = parseRepeaterRows(value);
+      const setCell = (rowIndex: number, columnId: string, cellValue: string) => {
+        const next = rows.map((row, i) => (i === rowIndex ? { ...row, [columnId]: cellValue } : row));
+        onChange(JSON.stringify(next));
+      };
+      const addRow = () => onChange(JSON.stringify([...rows, {}]));
+      const removeRow = (rowIndex: number) => onChange(JSON.stringify(rows.filter((_, i) => i !== rowIndex)));
+      return wrap(
+        <div className="space-y-2">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[400px] border-collapse text-sm">
+              <thead>
+                <tr>
+                  {columns.map((col) => (
+                    <th key={col.id} className="p-2 text-left font-medium text-slate-500 dark:text-slate-400">
+                      {col.label}
+                    </th>
+                  ))}
+                  <th className="p-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
+                    {columns.map((col) => (
+                      <td key={col.id} className="p-1">
+                        <input
+                          className="input-field"
+                          value={row[col.id] ?? ""}
+                          disabled={disabled}
+                          onChange={(e) => setCell(i, col.id, e.target.value)}
+                        />
+                      </td>
+                    ))}
+                    <td className="p-1">
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => removeRow(i)}
+                        className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+                        aria-label="Remove row"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" disabled={disabled} onClick={addRow} className="btn-secondary text-xs">
+            <Plus size={14} /> Add row
+          </button>
         </div>,
       );
     }

@@ -37,6 +37,25 @@ export function displayAnswerValue(field: FieldDto, raw: string | undefined): st
     }
   }
 
+  if (field.type === "REPEATER") {
+    try {
+      const rows = JSON.parse(raw) as Record<string, string>[];
+      const columns = field.config.repeaterColumns ?? [];
+      if (!Array.isArray(rows)) return raw;
+      return rows
+        .map((row) =>
+          columns
+            .filter((col) => row[col.id])
+            .map((col) => `${col.label}: ${row[col.id]}`)
+            .join(", "),
+        )
+        .filter(Boolean)
+        .join(" | ");
+    } catch {
+      return raw;
+    }
+  }
+
   const options = field.config.options;
   if (!options) return raw;
   if (field.type === "CHECKBOX") {

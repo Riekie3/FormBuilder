@@ -142,6 +142,7 @@ const fieldConfigSchema = z.object({
   minLength: z.number().int().min(0).max(10000).optional(),
   maxLength: z.number().int().min(0).max(10000).optional(),
   format: z.enum(["any", "letters", "numbers", "alphanumeric"]).optional(),
+  repeaterColumns: z.array(fieldOptionSchema).max(10).optional(),
 });
 
 const fieldInputSchema = z.object({

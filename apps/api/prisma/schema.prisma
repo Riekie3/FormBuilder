@@ -33,6 +33,7 @@ enum FieldType {
   CALCULATION
   PAGE_BREAK
   MATRIX
+  REPEATER
 }
 
 enum FormStatus {

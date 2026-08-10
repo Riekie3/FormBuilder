@@ -55,7 +55,8 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
       f.order < field.order &&
       !isLayoutField(f.type) &&
       !isComputedField(f.type) &&
-      f.type !== "MATRIX",
+      f.type !== "MATRIX" &&
+      f.type !== "REPEATER",
   );
   const condition = field.config.conditions?.[0];
   const conditionTarget = condition ? allFields.find((f) => f.id === condition.fieldId) : undefined;
@@ -170,6 +171,36 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
   function removeMatrixColumn(id: string) {
     if (!field) return;
     onChange({ config: { ...field.config, matrixColumns: matrixColumns.filter((c) => c.id !== id) } });
+  }
+
+  const repeaterColumns = field.config.repeaterColumns ?? [];
+
+  function updateRepeaterColumn(id: string, label: string) {
+    if (!field) return;
+    onChange({
+      config: {
+        ...field.config,
+        repeaterColumns: repeaterColumns.map((c) =>
+          c.id === id ? { ...c, label, value: label.toLowerCase().replace(/\s+/g, "-") } : c,
+        ),
+      },
+    });
+  }
+
+  function addRepeaterColumn() {
+    if (!field) return;
+    const n = repeaterColumns.length + 1;
+    onChange({
+      config: {
+        ...field.config,
+        repeaterColumns: [...repeaterColumns, { id: crypto.randomUUID(), label: `Column ${n}`, value: `column-${n}` }],
+      },
+    });
+  }
+
+  function removeRepeaterColumn(id: string) {
+    if (!field) return;
+    onChange({ config: { ...field.config, repeaterColumns: repeaterColumns.filter((c) => c.id !== id) } });
   }
 
   function toggleCondition(enabled: boolean) {
@@ -519,6 +550,35 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
               <Plus size={14} /> Add column
             </button>
           </div>
+        </div>
+      )}
+
+      {field.type === "REPEATER" && (
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Columns</label>
+          <div className="space-y-2">
+            {repeaterColumns.map((col) => (
+              <div key={col.id} className="flex items-center gap-2">
+                <input
+                  className="input-field flex-1"
+                  value={col.label}
+                  onChange={(e) => updateRepeaterColumn(col.id, e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeRepeaterColumn(col.id)}
+                  className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+                  aria-label="Remove column"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={addRepeaterColumn} className="btn-secondary mt-2 w-full text-xs">
+            <Plus size={14} /> Add column
+          </button>
+          <p className="mt-1 text-xs text-slate-400">Visitors add their own rows when filling out the form.</p>
         </div>
       )}
 

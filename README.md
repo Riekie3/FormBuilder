@@ -4,15 +4,15 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a-4h of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a-4i of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a
-single-level approval workflow, 10 additional field types (Address, Rating,
+single-level approval workflow, 11 additional field types (Address, Rating,
 Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
-Matrix) plus product code naming, multi-page forms with conditional field
-logic, builder undo/redo/multi-select/copy-paste, answer piping with URL
-query-param pre-fill, save-and-resume, custom field validation rules, and
-a one-question-per-page conversational layout. See [Roadmap](#roadmap)
-for what's planned in each later phase.
+Matrix, Line Items) plus product code naming, multi-page forms with
+conditional field logic, builder undo/redo/multi-select/copy-paste, answer
+piping with URL query-param pre-fill, save-and-resume, custom field
+validation rules, and a one-question-per-page conversational layout. See
+[Roadmap](#roadmap) for what's planned in each later phase.
 
 ## Stack
 
@@ -549,6 +549,47 @@ Phase 4b multi-page infrastructure rather than as a separate system.
   live, without needing to publish first. 1 new API test covers the
   default-off/toggle/public-exposure round-trip
 
+### Phase 4i — Line Items (repeatable row table) ✅ done
+
+A visitor-editable line-items table — Product/Qty/Price-style rows the
+visitor adds and removes themselves — distinct from the Phase 4d Matrix
+field's fixed grid, where rows are defined at design time, not fill time.
+
+- Turned out **not** to need the variable-length-answer-shape schema work
+  the roadmap originally assumed: `Answer.value` is already a free-form
+  string column, so a JSON array of row objects fits the exact same
+  "composite value as JSON" convention already used for Address and
+  Matrix. No `Answer` schema change, no migration beyond the field type
+  itself — the anticipated complexity didn't materialize once actually
+  implemented
+- `FieldConfig.repeaterColumns` (reuses `FieldOption`, like Matrix's
+  rows/columns) defines the table's columns; the answer is
+  `[{ [columnId]: value }, ...]`, one object per visitor-added row
+- **Required means at least one row exists** — not that every cell in
+  every row is filled. A visitor who added one line item has meaningfully
+  answered the field even with an optional column left blank on it;
+  requiring every cell of every row would be Matrix-level strictness this
+  field doesn't need, since rows themselves are optional to add at all
+- Not offered as a conditional-logic trigger field, same reasoning as
+  Matrix: the answer is a JSON blob, not a single comparable value
+- Builder settings panel gets a Columns editor (add/remove/rename),
+  mirroring Matrix's column editor — no Rows editor, since rows are
+  visitor-added at fill time, not defined by the form builder
+- Responses table and CSV export follow the established convention: the
+  table shows `Item: Widget, Quantity: 3, Price: 9.99`-style readable
+  summaries (rows joined with " | "), CSV keeps the raw column-id-keyed
+  JSON array
+- Verified end-to-end: confirmed a required Line Items field blocks
+  submission at zero rows and accepts it at one; added two rows, removed
+  one, and confirmed the remaining row's data survived the removal intact
+  (worth checking explicitly, since rows are addressed by array index —
+  removing a row shifts every later index down, and it needed to not
+  scramble the surviving data); submitted successfully and confirmed both
+  the responses table and CSV export render it correctly. 3 new API tests
+  cover the required-at-zero-rows/accepted-at-one-row distinction, the
+  optional-field skip, and that multi-row data round-trips through
+  storage unchanged
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
@@ -556,12 +597,6 @@ Phase 4b multi-page infrastructure rather than as a separate system.
   prefix-based autocomplete. Needs a clarified functional spec before
   estimating — open questions: is the dataset reusable across forms or
   scoped to one field, who can edit it, what happens with ambiguous prefixes
-- **Repeatable row table**: a visitor-editable line-items table (e.g.
-  Product/Qty/Price columns with an "Add row" button) — distinct from the
-  fixed-grid Matrix field shipped in Phase 4d. Needs a variable-length
-  answer shape (today every field stores exactly one `Answer` value per
-  response), a repeater UI with add/remove row, and CSV export changes to
-  flatten a variable number of rows into columns
 - Nested sections within a page
 - **Builder UX polish** (from Jotform's open-source `dnd-builder` library):
   field resizing, alignment guides, and distinct builder/preview/presentation/

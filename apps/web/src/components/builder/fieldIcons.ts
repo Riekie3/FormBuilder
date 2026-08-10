@@ -10,6 +10,7 @@ import {
   FileStack,
   Hash,
   Heading as HeadingIcon,
+  ListPlus,
   Mail,
   MapPin,
   Minus,
@@ -43,4 +44,5 @@ export const FIELD_TYPE_ICONS: Record<FieldType, LucideIcon> = {
   CALCULATION: Calculator,
   PAGE_BREAK: FileStack,
   MATRIX: Table2,
+  REPEATER: ListPlus,
 };
