@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { PublicFormDto } from "@sfb/shared";
 import { API_URL } from "@/lib/config";
@@ -33,7 +34,9 @@ export default async function PublicFormPage({ params }: Props) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-brand-50/60 to-transparent px-4 py-12 dark:from-slate-900 dark:to-slate-950">
       <div className="mx-auto max-w-xl">
-        <PublicFormClient slug={slug} form={form} />
+        <Suspense fallback={null}>
+          <PublicFormClient slug={slug} form={form} />
+        </Suspense>
         <p className="mt-6 text-center text-xs text-slate-400">Built with Smart Form Builder</p>
       </div>
     </div>

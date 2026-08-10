@@ -2,6 +2,7 @@
 
 import DOMPurify from "dompurify";
 import type { FieldDto } from "@sfb/shared";
+import { pipeAnswers } from "@/lib/answerPiping";
 import { renderSafeMarkdown } from "@/lib/safeMarkdown";
 import { SignaturePad } from "@/components/SignaturePad";
 
@@ -11,6 +12,11 @@ interface Props {
   onChange: (value: string) => void;
   error?: string;
   disabled?: boolean;
+  // Every field's current answer, keyed by fieldId — lets a later field's
+  // label/help text/content pipe in an earlier answer via a "{fieldId}"
+  // token. Omitted (e.g. the builder canvas's static preview) means no
+  // answers exist yet, so tokens simply pipe in as empty.
+  allValues?: Record<string, string>;
 }
 
 interface AddressValue {
@@ -41,17 +47,18 @@ function parseMatrix(raw: string): Record<string, string> {
 
 // Shared between the builder's live preview and the public form renderer so
 // field behavior never drifts between "what you designed" and "what visitors see".
-export function FormFieldRenderer({ field, value, onChange, error, disabled }: Props) {
+export function FormFieldRenderer({ field, value, onChange, error, disabled, allValues = {} }: Props) {
+  const pipedLabel = pipeAnswers(field.label, allValues);
+  const pipedHelpText = field.config.helpText ? pipeAnswers(field.config.helpText, allValues) : undefined;
+
   const baseLabel = (
     <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-      {field.label}
+      {pipedLabel}
       {field.required && <span className="ml-0.5 text-red-500">*</span>}
     </label>
   );
 
-  const helpText = field.config.helpText && (
-    <p className="mt-1 text-xs text-slate-400">{field.config.helpText}</p>
-  );
+  const helpText = pipedHelpText && <p className="mt-1 text-xs text-slate-400">{pipedHelpText}</p>;
 
   const errorText = error && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>;
 
@@ -72,7 +79,7 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled }: P
     case "HEADING":
       return (
         <div>
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{field.label}</h3>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{pipedLabel}</h3>
           {helpText}
         </div>
       );
@@ -81,9 +88,12 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled }: P
       return (
         <div
           className="text-sm text-slate-700 dark:text-slate-300"
-          // Sanitized at render time — field.config.htmlContent is untrusted
-          // (authored by whoever built the form) until DOMPurify has run.
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(field.config.htmlContent ?? "") }}
+          // Piped first, then sanitized — field.config.htmlContent is
+          // untrusted (authored by whoever built the form) until DOMPurify
+          // has run, regardless of what got substituted into it.
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(pipeAnswers(field.config.htmlContent ?? "", allValues)),
+          }}
         />
       );
 
@@ -91,7 +101,9 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled }: P
       return (
         <div
           className="text-sm text-slate-700 dark:text-slate-300"
-          dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(field.config.richText ?? "") }}
+          dangerouslySetInnerHTML={{
+            __html: renderSafeMarkdown(pipeAnswers(field.config.richText ?? "", allValues)),
+          }}
         />
       );
 

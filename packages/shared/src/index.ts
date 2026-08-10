@@ -50,6 +50,12 @@ export interface FieldConfig {
   conditions?: FieldCondition[];
   matrixRows?: FieldOption[]; // MATRIX — one row per item being rated; `value` unused, id/label only
   matrixColumns?: FieldOption[]; // MATRIX — the answer options shown across the top of every row
+  // The public form's URL query-string parameter name that pre-fills this
+  // field, e.g. prefillKey "ref" + visiting /f/slug?ref=newsletter sets this
+  // field's initial value to "newsletter". Unset = no pre-fill. Purely a
+  // client-side rendering concern — the server never reads or validates it
+  // beyond generic string bounds.
+  prefillKey?: string;
 }
 
 export interface FieldCondition {

@@ -14,6 +14,9 @@ interface Props {
   mode?: "preview" | "live";
   onSubmit?: (answers: Record<string, string>) => Promise<void>;
   requiresApproval?: boolean;
+  // Seeds the visitor's answers before they type anything — used by the
+  // public form's URL query-string pre-fill (config.prefillKey matches).
+  initialValues?: Record<string, string>;
 }
 
 // Renders a fillable form. In "preview" mode (used by the builder) submissions
@@ -21,8 +24,16 @@ interface Props {
 // the answers to the API. PAGE_BREAK fields split the field list into pages,
 // shown one at a time with a progress bar; a form with none of those renders
 // exactly as it did before multi-page support existed.
-export function PreviewForm({ title, description, fields, mode = "live", onSubmit, requiresApproval = false }: Props) {
-  const [values, setValues] = useState<Record<string, string>>({});
+export function PreviewForm({
+  title,
+  description,
+  fields,
+  mode = "live",
+  onSubmit,
+  requiresApproval = false,
+  initialValues,
+}: Props) {
+  const [values, setValues] = useState<Record<string, string>>(() => initialValues ?? {});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -163,6 +174,7 @@ export function PreviewForm({ title, description, fields, mode = "live", onSubmi
             value={values[field.id] ?? ""}
             onChange={(v) => setValues((prev) => ({ ...prev, [field.id]: v }))}
             error={errors[field.id]}
+            allValues={values}
           />
         ))
       )}

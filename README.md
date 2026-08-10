@@ -4,13 +4,14 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a/4b/4c/4d of 8** on the roadmap: core form
-building/submission, department-based roles and permissions, a single-level
-approval workflow, 10 additional field types (Address, Rating, Signature,
-Divider, Heading, HTML Block, Hidden, Rich Text, Calculation, Matrix) plus
-product code naming, multi-page forms with conditional field logic, and
-builder undo/redo, multi-select, and copy/paste. See [Roadmap](#roadmap) for
-what's planned in each later phase.
+This is **Phases 1-3 plus Phase 4a/4b/4c/4d/4e of 8** on the roadmap: core
+form building/submission, department-based roles and permissions, a
+single-level approval workflow, 10 additional field types (Address, Rating,
+Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
+Matrix) plus product code naming, multi-page forms with conditional field
+logic, builder undo/redo/multi-select/copy-paste, and answer piping with
+URL query-param pre-fill. See [Roadmap](#roadmap) for what's planned in
+each later phase.
 
 ## Stack
 
@@ -385,6 +386,50 @@ export changes) noted below in the continuation list.
   table renders it as readable `label: label` pairs and CSV export keeps
   the raw row-id-keyed JSON
 
+### Phase 4e — Answer piping & URL pre-fill ✅ done
+
+Two small, client-side-only additions — neither needed a database
+migration, and both are about pulling data from *outside* the field being
+rendered into what the visitor sees.
+
+- **Answer piping**: a `{fieldId}` token in a field's label, help text, HTML
+  Block content, or Rich Text content is substituted with that field's
+  current answer, live, as the visitor fills the form — e.g. a label reading
+  "Thanks, {name}! What's your favorite color?" updates on every keystroke
+  in the name field. An unanswered token pipes in as an empty string, the
+  same "sensible empty default" convention the Calculation field already
+  established. `apps/web/src/lib/answerPiping.ts` (`pipeAnswers()`) is the
+  entire implementation — a single regex substitution, web-only, since
+  nothing server-side ever renders a label
+- Builder UI: a small "Pipe in an earlier answer" row of insert buttons
+  appears under Label, Help Text, HTML content, and Rich Text content,
+  listing the same "earlier, value-bearing fields" candidate set already
+  computed for conditional logic — reused as-is rather than duplicated
+- **URL query-param pre-fill**: a field can be given a `config.prefillKey`
+  (e.g. `ref`) so visiting `/f/slug?ref=newsletter` seeds that field's
+  initial answer before the visitor types anything. Implemented entirely in
+  `PublicFormClient.tsx` via `useSearchParams()` matching each field's
+  configured key against the query string — the public page's dynamic
+  Server Component was already `cache: "no-store"`, so the required
+  `<Suspense>` boundary around the client component was the only
+  structural change needed, verified against a real `next build` (not just
+  dev mode, which won't catch a missing Suspense boundary the way a
+  production build does)
+- Pre-filled values are ordinary answers as far as required-field
+  validation is concerned — no special-casing needed, since they just seed
+  the same `values` state a typed answer would land in
+- Not offered on fields whose answer isn't a plain string (Address, Matrix,
+  Signature) for the same reason those are excluded from conditional-logic
+  triggers — a raw JSON blob isn't practical to pass as a single query value
+- Verified end-to-end: built a two-field form (a prefill-keyed "Your Name"
+  field, and a second field piping that name into both its label and help
+  text), confirmed `?name=Alex` pre-filled the input *and* rendered "Alex"
+  in the piped label/help text on load, confirmed piping stayed live when
+  the visitor edited the name afterward, confirmed the no-query-param case
+  degrades to empty tokens rather than showing `{fieldId}` literally, and
+  confirmed both builder-side controls (the token-insert buttons and the
+  URL-parameter-name input) round-trip correctly
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
@@ -405,10 +450,6 @@ export changes) noted below in the continuation list.
   print view modes
 - **One-question-per-page "conversational" layout**: a form display mode
   variant on top of multi-page forms, one field per screen
-- **Answer piping**: reuse an earlier answer's value inside a later
-  question's label/help text
-- **URL query-param pre-fill**: pre-populate field values from the public
-  form link's query string
 - **Save-and-resume**: a partially-completed public submission can be saved
   and continued later via a resume link/token
 - **Multilingual forms**: translate a form's labels/text for multiple
@@ -416,10 +457,10 @@ export changes) noted below in the continuation list.
   estimating (translation storage model, locale switcher UX, whether
   submissions record which locale was used)
 
-(The builder UX polish and the four items below it — one-question-per-page,
-answer piping, URL pre-fill, save-and-resume — are sourced from a
-competitive review of Jotform's public features page and their open-source
-`dnd-builder` library — not from their closed-source product code, which
+(The builder UX polish and the two items below it — one-question-per-page
+and save-and-resume — are sourced from a competitive review of Jotform's
+public features page and their open-source `dnd-builder` library — not
+from their closed-source product code, which
 isn't public. Deliberately not chasing from that same review: 200+ native
 integrations — our Phase 8 webhooks/API let users wire up Zapier/Make
 themselves instead — HIPAA compliance, and offline mobile collection; all

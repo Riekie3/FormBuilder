@@ -91,6 +91,38 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
     onChange({ config: { ...field.config, formula: `${field.config.formula ?? ""}{${fieldId}}` } });
   }
 
+  // Answer piping reuses the same "earlier, value-bearing field" candidate
+  // list as conditional logic — both need a field whose answer already
+  // exists by the time this one is shown.
+  function insertPipeToken(key: "label" | "helpText" | "htmlContent" | "richText", fieldId: string) {
+    if (!field) return;
+    const token = `{${fieldId}}`;
+    if (key === "label") {
+      onChange({ label: `${field.label}${token}` });
+    } else {
+      onChange({ config: { ...field.config, [key]: `${field.config[key] ?? ""}${token}` } });
+    }
+  }
+
+  function renderPipeTokens(onInsert: (fieldId: string) => void) {
+    if (conditionCandidates.length === 0) return null;
+    return (
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-slate-400">Pipe in an earlier answer:</span>
+        {conditionCandidates.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => onInsert(f.id)}
+            className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+          >
+            + {f.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   const matrixRows = field.config.matrixRows ?? [];
   const matrixColumns = field.config.matrixColumns ?? [];
 
@@ -177,6 +209,7 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
             placeholder={isPageBreak(field.type) ? "e.g. Shipping details" : undefined}
             onChange={(e) => onChange({ label: e.target.value })}
           />
+          {renderPipeTokens((id) => insertPipeToken("label", id))}
         </div>
       )}
 
@@ -226,6 +259,7 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
             onChange={(e) => onChange({ config: { ...field.config, htmlContent: e.target.value } })}
           />
           <p className="mt-1 text-xs text-slate-400">Sanitized before display — scripts and event handlers are stripped.</p>
+          {renderPipeTokens((id) => insertPipeToken("htmlContent", id))}
         </div>
       )}
 
@@ -240,6 +274,7 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
           <p className="mt-1 text-xs text-slate-400">
             Supports **bold**, _italic_, [link](https://...), and line breaks.
           </p>
+          {renderPipeTokens((id) => insertPipeToken("richText", id))}
         </div>
       )}
 
@@ -292,6 +327,7 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
             value={field.config.helpText ?? ""}
             onChange={(e) => onChange({ config: { ...field.config, helpText: e.target.value } })}
           />
+          {renderPipeTokens((id) => insertPipeToken("helpText", id))}
         </div>
       )}
 
@@ -305,6 +341,25 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
           />
           Required field
         </label>
+      )}
+
+      {!isLayoutField(field.type) && field.type !== "CALCULATION" && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
+            URL parameter name (optional)
+          </label>
+          <input
+            className="input-field"
+            placeholder="e.g. ref"
+            value={field.config.prefillKey ?? ""}
+            onChange={(e) => onChange({ config: { ...field.config, prefillKey: e.target.value || undefined } })}
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            {field.config.prefillKey
+              ? `Pre-fills from ?${field.config.prefillKey}=... in the public form's link.`
+              : "Set a name to let the public link pre-fill this field via a query parameter."}
+          </p>
+        </div>
       )}
 
       {fieldSupportsOptions(field.type) && (
