@@ -4,15 +4,16 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a-4i of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a-4j of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a
 single-level approval workflow, 11 additional field types (Address, Rating,
 Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
 Matrix, Line Items) plus product code naming, multi-page forms with
 conditional field logic, builder undo/redo/multi-select/copy-paste, answer
 piping with URL query-param pre-fill, save-and-resume, custom field
-validation rules, and a one-question-per-page conversational layout. See
-[Roadmap](#roadmap) for what's planned in each later phase.
+validation rules, a one-question-per-page conversational layout, and
+half/third-width fields for side-by-side layouts. See [Roadmap](#roadmap)
+for what's planned in each later phase.
 
 ## Stack
 
@@ -590,6 +591,35 @@ field's fixed grid, where rows are defined at design time, not fill time.
   optional-field skip, and that multi-row data round-trips through
   storage unchanged
 
+### Phase 4j — Field width (side-by-side layout) ✅ done
+
+The first slice of "builder UX polish" — `FieldConfig.width` (`full` /
+`half` / `third`) lets two half-width fields, or three third-width ones,
+sit on the same row instead of every field always taking the full page
+width. The classic case: First Name and Last Name side by side.
+
+- Implemented as a 6-column CSS grid: `full` = `col-span-6`, `half` =
+  `col-span-6 sm:col-span-3`, `third` = `col-span-6 sm:col-span-2`. Below
+  the `sm` breakpoint every field falls back to full width regardless of
+  its configured width, so a half-width field never renders cramped on a
+  phone screen
+- One shared `widthSpanClass()` helper (`apps/web/src/lib/fieldWidth.ts`)
+  drives both the builder canvas (`Canvas.tsx`/`FieldItem.tsx`) and the
+  actual field-filling UI (`PreviewForm.tsx`), so the builder's canvas
+  layout and what a visitor sees never drift apart
+- Not offered for Address, Matrix, Repeater (complex internal sub-layouts
+  that get cramped at half/third width), Signature, Divider, or Page
+  Break (structurally full-bleed by nature) — the width selector simply
+  doesn't appear for those types in the settings panel
+- Verified end-to-end: built a form with half-width First/Last Name
+  fields and a full-width Email field, confirmed via actual computed
+  `getBoundingClientRect()` layout (not just visual inspection) that the
+  two half-width inputs share the same row at half the container's width
+  each, in both the builder canvas and the live public form; resized to a
+  mobile viewport and confirmed all three fields correctly stack to full
+  width instead of staying cramped side by side; submitted the form
+  successfully
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
@@ -598,9 +628,10 @@ field's fixed grid, where rows are defined at design time, not fill time.
   estimating — open questions: is the dataset reusable across forms or
   scoped to one field, who can edit it, what happens with ambiguous prefixes
 - Nested sections within a page
-- **Builder UX polish** (from Jotform's open-source `dnd-builder` library):
-  field resizing, alignment guides, and distinct builder/preview/presentation/
-  print view modes
+- **Remaining builder UX polish** (from Jotform's open-source
+  `dnd-builder` library): alignment guides, and distinct
+  builder/preview/presentation/print view modes — field width/resizing
+  itself shipped in Phase 4j above
 - **Multilingual forms**: translate a form's labels/text for multiple
   locales — real i18n infrastructure, needs its own scoping pass before
   estimating (translation storage model, locale switcher UX, whether

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { FieldDto } from "@sfb/shared";
 import { getFieldValidationError, isComputedField, isFieldAnswerComplete, isFieldVisible, isLayoutField } from "@sfb/shared";
 import { FormFieldRenderer } from "@/components/FormFieldRenderer";
+import { widthSpanClass } from "@/lib/fieldWidth";
 import { evaluateFormula } from "@/lib/safeFormula";
 import { splitIntoPages } from "@/lib/formPages";
 
@@ -215,16 +216,19 @@ export function PreviewForm({
       {fields.length === 0 ? (
         <p className="text-sm text-slate-400">This form doesn&apos;t have any fields yet.</p>
       ) : (
-        currentPageFields.map((field) => (
-          <FormFieldRenderer
-            key={field.id}
-            field={field}
-            value={values[field.id] ?? ""}
-            onChange={(v) => setValues((prev) => ({ ...prev, [field.id]: v }))}
-            error={errors[field.id]}
-            allValues={values}
-          />
-        ))
+        <div className="grid grid-cols-6 gap-x-4 gap-y-5">
+          {currentPageFields.map((field) => (
+            <div key={field.id} className={widthSpanClass(field.config.width)}>
+              <FormFieldRenderer
+                field={field}
+                value={values[field.id] ?? ""}
+                onChange={(v) => setValues((prev) => ({ ...prev, [field.id]: v }))}
+                error={errors[field.id]}
+                allValues={values}
+              />
+            </div>
+          ))}
+        </div>
       )}
 
       {submitError && <p className="text-sm text-red-600 dark:text-red-400">{submitError}</p>}

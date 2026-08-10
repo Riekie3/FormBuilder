@@ -14,6 +14,11 @@ interface Props {
 }
 
 const PLACEHOLDER_TYPES = new Set(["TEXT", "PARAGRAPH", "EMAIL", "PHONE", "NUMBER"]);
+// Excluded from width choices: these either have complex internal
+// sub-layouts that get cramped at half/third width (Address, Matrix,
+// Repeater) or are true full-bleed content by nature (Signature, Divider,
+// Page Break).
+const WIDTH_UNSUPPORTED_TYPES = new Set(["ADDRESS", "MATRIX", "REPEATER", "SIGNATURE", "DIVIDER", "PAGE_BREAK"]);
 
 export function FieldSettingsPanel({ field, allFields, onChange, selectedCount = 0, onBulkDuplicate, onBulkDelete }: Props) {
   if (selectedCount > 1) {
@@ -241,6 +246,22 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
             onChange={(e) => onChange({ label: e.target.value })}
           />
           {renderPipeTokens((id) => insertPipeToken("label", id))}
+        </div>
+      )}
+
+      {!WIDTH_UNSUPPORTED_TYPES.has(field.type) && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Width</label>
+          <select
+            className="input-field"
+            value={field.config.width ?? "full"}
+            onChange={(e) => onChange({ config: { ...field.config, width: e.target.value as "full" | "half" | "third" } })}
+          >
+            <option value="full">Full width</option>
+            <option value="half">Half width</option>
+            <option value="third">Third width</option>
+          </select>
+          <p className="mt-1 text-xs text-slate-400">Half/third-width fields sit side by side on the same row.</p>
         </div>
       )}
 

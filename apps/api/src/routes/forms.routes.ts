@@ -143,6 +143,7 @@ const fieldConfigSchema = z.object({
   maxLength: z.number().int().min(0).max(10000).optional(),
   format: z.enum(["any", "letters", "numbers", "alphanumeric"]).optional(),
   repeaterColumns: z.array(fieldOptionSchema).max(10).optional(),
+  width: z.enum(["full", "half", "third"]).optional(),
 });
 
 const fieldInputSchema = z.object({

@@ -6,6 +6,7 @@ import { Copy, GripVertical, Trash2 } from "lucide-react";
 import type { FieldDto } from "@sfb/shared";
 import type { SelectModifiers } from "@/hooks/useFormBuilder";
 import { FormFieldRenderer } from "@/components/FormFieldRenderer";
+import { widthSpanClass } from "@/lib/fieldWidth";
 import { FIELD_TYPE_ICONS } from "./fieldIcons";
 import { DND_TYPES } from "./FieldPalette";
 
@@ -70,7 +71,7 @@ export function FieldItem({ field, index, selected, onSelect, onDuplicate, onDel
     <div
       ref={ref}
       onClick={(e) => onSelect({ ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey })}
-      className={`group relative cursor-pointer rounded-xl border bg-white p-4 shadow-sm transition dark:bg-slate-900 ${
+      className={`group relative cursor-pointer rounded-xl border bg-white p-4 shadow-sm transition dark:bg-slate-900 ${widthSpanClass(field.config.width)} ${
         selected ? "border-brand-400 ring-2 ring-brand-100 dark:ring-brand-900" : "border-slate-200 dark:border-slate-800"
       } ${isDragging ? "opacity-40" : ""}`}
     >

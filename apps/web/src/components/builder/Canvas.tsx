@@ -57,7 +57,7 @@ export function Canvas({
           <p className="text-sm">Drag a field type here, or click one in the palette.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-6 gap-3">
           {fields.map((field, index) => (
             <FieldItem
               key={field.id}

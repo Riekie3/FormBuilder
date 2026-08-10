@@ -66,6 +66,10 @@ export interface FieldConfig {
   // such risk. TEXT only.
   format?: "any" | "letters" | "numbers" | "alphanumeric";
   repeaterColumns?: FieldOption[]; // REPEATER — the line-items table's columns; `value` unused like matrixRows
+  // How much of the page's width this field's card occupies — lets two
+  // "half" fields (or three "third" fields) sit side by side on one row
+  // instead of every field always taking the full row. Unset = "full".
+  width?: "full" | "half" | "third";
 }
 
 export interface FieldCondition {
