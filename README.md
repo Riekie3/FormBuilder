@@ -4,12 +4,13 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a/4b of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a/4b/4c of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a single-level
 approval workflow, 9 additional field types (Address, Rating, Signature,
 Divider, Heading, HTML Block, Hidden, Rich Text, Calculation) plus product
-code naming, and now multi-page forms with conditional field logic. See
-[Roadmap](#roadmap) for what's planned in each later phase.
+code naming, multi-page forms with conditional field logic, and builder
+undo/redo, multi-select, and copy/paste. See [Roadmap](#roadmap) for what's
+planned in each later phase.
 
 ## Stack
 
@@ -295,6 +296,55 @@ covers the practical "what's waiting on me" need in the meantime.
   the responses table, CSV export, and the builder's settings panel all
   round-trip the stored condition correctly; cleaned up afterward
 
+### Phase 4c — Builder undo/redo, multi-select & copy/paste ✅ done
+
+Pure builder-UX additions — no schema or API changes, since none of this
+touches what a form *is*, only how it's edited.
+
+- **Undo/redo**: `useFormBuilder` keeps a `{ past, future }` history stack
+  (capped at 50 entries) of field-array snapshots. Every discrete mutation
+  (add/update/remove/duplicate/paste, single or bulk) pushes the pre-change
+  snapshot before applying itself. A drag-to-reorder gesture calls `onMove`
+  once per hover frame, so history is captured once per *gesture* instead —
+  a snapshot taken when the drag starts, committed only if the order
+  actually changed by the time it ends — otherwise undo would only step
+  back one pixel of mouse movement at a time
+  - Ctrl/Cmd+Z to undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y to redo, plus header
+    toolbar buttons with correct disabled states
+- **Multi-select**: Ctrl/Cmd-click toggles a field in/out of selection,
+  Shift-click selects a contiguous range, a plain click selects just one,
+  and clicking empty canvas space clears the selection. Selecting more than
+  one field swaps the settings panel for a bulk actions bar (Duplicate/
+  Delete all selected)
+- **Copy/paste**: Ctrl/Cmd+C copies the current selection into an in-memory
+  clipboard (not the OS clipboard — this is same-session, same-builder
+  only, which is the only case that matters here), Ctrl/Cmd+V pastes fresh
+  copies right after the current selection. Both shortcuts — along with
+  undo/redo — are guarded against any focused text input, textarea, select,
+  or contenteditable element, so they never hijack normal text editing in
+  the label/placeholder fields or the form title
+- **A real bug found and fixed during verification, not just a hypothetical
+  edge case**: newly-added fields get a temporary client-side id until the
+  debounced autosave round-trip assigns a real one. `selectedIds` — and,
+  since Phase 4a, Calculation formula tokens and condition `fieldId`s — can
+  reference a field by that temporary id. Left un-remapped, a field selected
+  right before its id got reconciled would silently stop matching anything,
+  so a bulk-delete right after a bulk-duplicate could appear to succeed
+  (selection clears) while deleting nothing. Fixed by remapping temp→real
+  ids across `selectedIds` and every history snapshot in the same place the
+  reconciliation already happens. Verified directly: reproduced the exact
+  race (duplicate → wait for autosave → bulk-delete) before and after the
+  fix, confirmed the deletion now actually persists
+- Verified in the browser: undo/redo round-tripping add/duplicate/delete,
+  the id-reconciliation race above, multi-select via ctrl-click, bulk
+  duplicate/delete, and Ctrl+C/Ctrl+V pasting a field. **Not verified**:
+  drag-to-reorder's history capture specifically — this sandbox's browser
+  pane can't composite frames for coordinate-based drag simulation, and
+  react-dnd's HTML5 backend doesn't respond to synthetically-dispatched
+  drag events either, so that one path is reviewed-correct rather than
+  browser-confirmed. The reorder mechanism itself is untouched pre-existing
+  code; only the history bookkeeping around it is new.
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
 - **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
@@ -303,7 +353,7 @@ covers the practical "what's waiting on me" need in the meantime.
   estimating — open questions: is the dataset reusable across forms or
   scoped to one field, who can edit it, what happens with ambiguous prefixes
 - Nested sections within a page
-- Undo/redo, multi-select, copy/paste, custom validation rules
+- Custom validation rules
 - **Builder UX polish** (from Jotform's open-source `dnd-builder` library):
   field resizing, alignment guides, and distinct builder/preview/presentation/
   print view modes

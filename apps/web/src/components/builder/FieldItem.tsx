@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import { Copy, GripVertical, Trash2 } from "lucide-react";
 import type { FieldDto } from "@sfb/shared";
+import type { SelectModifiers } from "@/hooks/useFormBuilder";
 import { FormFieldRenderer } from "@/components/FormFieldRenderer";
 import { FIELD_TYPE_ICONS } from "./fieldIcons";
 import { DND_TYPES } from "./FieldPalette";
@@ -17,23 +18,29 @@ interface Props {
   field: FieldDto;
   index: number;
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (modifiers: SelectModifiers) => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onMove: (dragIndex: number, hoverIndex: number) => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }
 
-export function FieldItem({ field, index, selected, onSelect, onDuplicate, onDelete, onMove }: Props) {
+export function FieldItem({ field, index, selected, onSelect, onDuplicate, onDelete, onMove, onDragStart, onDragEnd }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const Icon = FIELD_TYPE_ICONS[field.type];
 
   const [{ isDragging }, drag] = useDrag(
     () => ({
       type: DND_TYPES.CANVAS_FIELD,
-      item: (): DragItem => ({ id: field.id, index }),
+      item: (): DragItem => {
+        onDragStart();
+        return { id: field.id, index };
+      },
+      end: () => onDragEnd(),
       collect: (monitor) => ({ isDragging: monitor.isDragging() }),
     }),
-    [field.id, index],
+    [field.id, index, onDragStart, onDragEnd],
   );
 
   const [, drop] = useDrop<DragItem>(
@@ -62,7 +69,7 @@ export function FieldItem({ field, index, selected, onSelect, onDuplicate, onDel
   return (
     <div
       ref={ref}
-      onClick={onSelect}
+      onClick={(e) => onSelect({ ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey })}
       className={`group relative cursor-pointer rounded-xl border bg-white p-4 shadow-sm transition dark:bg-slate-900 ${
         selected ? "border-brand-400 ring-2 ring-brand-100 dark:ring-brand-900" : "border-slate-200 dark:border-slate-800"
       } ${isDragging ? "opacity-40" : ""}`}

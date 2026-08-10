@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { ArrowLeft, Eye, Loader2, Radio, Check } from "lucide-react";
+import { ArrowLeft, Eye, Loader2, Radio, Check, Redo2, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { AuthGate } from "@/components/AuthGate";
 import { useFormBuilder } from "@/hooks/useFormBuilder";
@@ -44,13 +44,24 @@ function BuilderContent() {
     fields,
     loading,
     saveStatus,
-    selectedFieldId,
-    setSelectedFieldId,
+    selectedIds,
+    selectField,
+    clearSelection,
     addField,
     updateField,
     removeField,
+    removeFields,
     duplicateField,
+    duplicateFields,
     reorderFields,
+    beginReorder,
+    commitReorder,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    copyFields,
+    pasteFields,
     updateFormMetaImmediate,
     debouncedMetaSave,
   } = useFormBuilder(params.id);
@@ -58,11 +69,46 @@ function BuilderContent() {
   const [showPreview, setShowPreview] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
+  // Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y redo, Ctrl/Cmd+C/V copy
+  // and paste selected fields — guarded against any typing target so these
+  // never hijack normal text editing (labels, the title field, etc).
+  useEffect(() => {
+    function isTypingTarget(el: EventTarget | null) {
+      if (!(el instanceof HTMLElement)) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (isTypingTarget(e.target)) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      } else if (key === "z") {
+        e.preventDefault();
+        undo();
+      } else if (key === "y") {
+        e.preventDefault();
+        redo();
+      } else if (key === "c" && selectedIds.size > 0) {
+        e.preventDefault();
+        copyFields(selectedIds);
+      } else if (key === "v") {
+        e.preventDefault();
+        pasteFields();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undo, redo, copyFields, pasteFields, selectedIds]);
+
   if (loading || !form) {
     return <div className="p-10 text-sm text-slate-500 dark:text-slate-400">Loading form...</div>;
   }
 
-  const selectedField = fields.find((f) => f.id === selectedFieldId) ?? null;
+  const selectedField = selectedIds.size === 1 ? fields.find((f) => selectedIds.has(f.id)) ?? null : null;
   const publicUrl =
     typeof window !== "undefined" ? `${window.location.origin}/f/${form.slug}` : `/f/${form.slug}`;
 
@@ -102,6 +148,26 @@ function BuilderContent() {
                   {publicUrl}
                 </a>
               )}
+              <button
+                type="button"
+                onClick={undo}
+                disabled={!canUndo}
+                aria-label="Undo"
+                title="Undo (Ctrl+Z)"
+                className="btn-secondary text-sm disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Undo2 size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={redo}
+                disabled={!canRedo}
+                aria-label="Redo"
+                title="Redo (Ctrl+Shift+Z)"
+                className="btn-secondary text-sm disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Redo2 size={16} />
+              </button>
               <button type="button" onClick={() => setShowPreview(true)} className="btn-secondary text-sm">
                 <Eye size={16} /> Preview
               </button>
@@ -133,12 +199,15 @@ function BuilderContent() {
           <div className="order-1 lg:order-2">
             <Canvas
               fields={fields}
-              selectedFieldId={selectedFieldId}
-              onSelect={setSelectedFieldId}
+              selectedIds={selectedIds}
+              onSelect={selectField}
+              onClearSelection={clearSelection}
               onDuplicate={duplicateField}
               onDelete={removeField}
               onMove={reorderFields}
               onDropNewField={addField}
+              onDragStart={beginReorder}
+              onDragEnd={commitReorder}
             />
           </div>
           <div className="order-3 space-y-4">
@@ -157,6 +226,9 @@ function BuilderContent() {
               field={selectedField}
               allFields={fields}
               onChange={(patch) => selectedField && updateField(selectedField.id, patch)}
+              selectedCount={selectedIds.size}
+              onBulkDuplicate={() => duplicateFields(selectedIds)}
+              onBulkDelete={() => removeFields(selectedIds)}
             />
           </div>
         </main>

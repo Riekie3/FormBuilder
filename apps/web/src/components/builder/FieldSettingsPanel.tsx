@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Copy, Plus, Trash2 } from "lucide-react";
 import type { FieldCondition, FieldDto } from "@sfb/shared";
 import { fieldSupportsOptions, isComputedField, isLayoutField, isPageBreak } from "@sfb/shared";
 
@@ -8,11 +8,37 @@ interface Props {
   field: FieldDto | null;
   allFields: FieldDto[];
   onChange: (patch: Partial<FieldDto>) => void;
+  selectedCount?: number;
+  onBulkDuplicate?: () => void;
+  onBulkDelete?: () => void;
 }
 
 const PLACEHOLDER_TYPES = new Set(["TEXT", "PARAGRAPH", "EMAIL", "PHONE", "NUMBER"]);
 
-export function FieldSettingsPanel({ field, allFields, onChange }: Props) {
+export function FieldSettingsPanel({ field, allFields, onChange, selectedCount = 0, onBulkDuplicate, onBulkDelete }: Props) {
+  if (selectedCount > 1) {
+    return (
+      <div className="card space-y-3 p-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{selectedCount} fields selected</h3>
+        <div className="flex gap-2">
+          <button type="button" onClick={onBulkDuplicate} className="btn-secondary flex-1 text-xs">
+            <Copy size={14} /> Duplicate
+          </button>
+          <button
+            type="button"
+            onClick={onBulkDelete}
+            className="btn-secondary flex-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+          >
+            <Trash2 size={14} /> Delete
+          </button>
+        </div>
+        <p className="text-xs text-slate-400">
+          Ctrl/Cmd-click to add or remove a field, Shift-click to select a range. Ctrl/Cmd+C then Ctrl/Cmd+V to copy.
+        </p>
+      </div>
+    );
+  }
+
   if (!field) {
     return (
       <div className="card p-4 text-sm text-slate-400">Select a field to edit its settings.</div>

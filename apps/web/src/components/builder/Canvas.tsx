@@ -3,20 +3,35 @@
 import { useDrop } from "react-dnd";
 import { LayoutTemplate } from "lucide-react";
 import type { FieldDto, FieldType } from "@sfb/shared";
+import type { SelectModifiers } from "@/hooks/useFormBuilder";
 import { FieldItem } from "./FieldItem";
 import { DND_TYPES } from "./FieldPalette";
 
 interface Props {
   fields: FieldDto[];
-  selectedFieldId: string | null;
-  onSelect: (id: string) => void;
+  selectedIds: Set<string>;
+  onSelect: (id: string, index: number, modifiers: SelectModifiers) => void;
+  onClearSelection: () => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
   onMove: (dragIndex: number, hoverIndex: number) => void;
   onDropNewField: (type: FieldType) => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }
 
-export function Canvas({ fields, selectedFieldId, onSelect, onDuplicate, onDelete, onMove, onDropNewField }: Props) {
+export function Canvas({
+  fields,
+  selectedIds,
+  onSelect,
+  onClearSelection,
+  onDuplicate,
+  onDelete,
+  onMove,
+  onDropNewField,
+  onDragStart,
+  onDragEnd,
+}: Props) {
   const [{ isOver }, drop] = useDrop(
     () => ({
       accept: DND_TYPES.PALETTE_FIELD,
@@ -29,6 +44,9 @@ export function Canvas({ fields, selectedFieldId, onSelect, onDuplicate, onDelet
   return (
     <div
       ref={drop as unknown as React.Ref<HTMLDivElement>}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClearSelection();
+      }}
       className={`min-h-[400px] rounded-xl2 border-2 border-dashed p-4 transition ${
         isOver ? "border-brand-400 bg-brand-50/50 dark:bg-brand-950/20" : "border-slate-200 dark:border-slate-800"
       }`}
@@ -45,11 +63,13 @@ export function Canvas({ fields, selectedFieldId, onSelect, onDuplicate, onDelet
               key={field.id}
               field={field}
               index={index}
-              selected={field.id === selectedFieldId}
-              onSelect={() => onSelect(field.id)}
+              selected={selectedIds.has(field.id)}
+              onSelect={(modifiers) => onSelect(field.id, index, modifiers)}
               onDuplicate={() => onDuplicate(field.id)}
               onDelete={() => onDelete(field.id)}
               onMove={onMove}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
             />
           ))}
         </div>
