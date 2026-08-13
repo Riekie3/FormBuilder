@@ -359,6 +359,59 @@ formsRouter.patch(
   }),
 );
 
+// POST /api/forms/:id/duplicate — clones a form's settings and fields into a
+// new DRAFT form owned by the caller. Cloning is a "copy for yourself"
+// action that never modifies the source, so it only needs view access, not
+// edit — a department member who can merely view a form can still use it as
+// a starting point for their own draft.
+formsRouter.post(
+  "/:id/duplicate",
+  asyncHandler(async (req, res) => {
+    const source = await loadAccessibleForm(req.params.id, req.userId!, "view");
+    const sourceFields = await prisma.field.findMany({ where: { formId: source.id }, orderBy: { order: "asc" } });
+
+    // Department (and the approval config resolved against it) only carries
+    // over if the caller can still create forms there themselves — otherwise
+    // the clone would silently grant them department-wide visibility they
+    // wouldn't otherwise have. Falls back to a private draft instead of
+    // failing outright, since a private copy is still a useful starting point.
+    const canKeepDepartment = await canCreateInDepartment(req.userId!, source.departmentId);
+    const departmentId = canKeepDepartment ? source.departmentId : null;
+    const requiresApproval = departmentId ? source.requiresApproval : false;
+    const approverRoleId = departmentId ? source.approverRoleId : null;
+
+    const duplicate = await prisma.form.create({
+      data: {
+        title: `${source.title} (copy)`,
+        description: source.description,
+        slug: slugify(source.title),
+        // Always a draft, regardless of the source form's status — cloning
+        // a published form shouldn't silently publish a second copy of it.
+        status: "DRAFT",
+        ownerId: req.userId!,
+        departmentId,
+        requiresApproval,
+        approverRoleId,
+        productCode: source.productCode,
+        oneQuestionPerPage: source.oneQuestionPerPage,
+        fields: {
+          create: sourceFields.map((f) => ({
+            type: f.type,
+            label: f.label,
+            required: f.required,
+            order: f.order,
+            config: f.config as object,
+          })),
+        },
+      },
+      include: FORM_INCLUDE,
+    });
+
+    const dto = await toSummaryDto(duplicate, 0, { canEdit: true, canDelete: true }, req.userId!);
+    res.status(201).json({ form: dto });
+  }),
+);
+
 // DELETE /api/forms/:id
 formsRouter.delete(
   "/:id",

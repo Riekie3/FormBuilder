@@ -4,7 +4,7 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a-4l of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a-4m of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a
 single-level approval workflow, 12 additional field types (Address, Rating,
 Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
@@ -13,8 +13,9 @@ with conditional field logic (now group-level via Sections, not just
 per-field), builder undo/redo/multi-select/copy-paste, answer piping with
 URL query-param pre-fill, save-and-resume, custom field validation rules, a
 one-question-per-page conversational layout, half/third-width fields for
-side-by-side layouts, and a printable fill-by-hand view of a form. See
-[Roadmap](#roadmap) for what's planned in each later phase.
+side-by-side layouts, a printable fill-by-hand view of a form, and
+one-click form duplication. See [Roadmap](#roadmap) for what's planned in
+each later phase.
 
 ## Stack
 
@@ -92,10 +93,12 @@ cross-form token isolation, cleanup on final submit), field-level
 validation rules (Number min/max, Text length/format, Email format, and
 that an optional field left blank skips format checks while one that's
 merely non-required-but-filled-in still gets validated), the Repeater
-field's required-at-zero-rows behavior, and Section-level conditional
+field's required-at-zero-rows behavior, Section-level conditional
 visibility (a hidden section exempts its fields from required-validation,
 a visible one still enforces them, and a section's scope correctly stops
-at a Page Break). The auth/submission
+at a Page Break), and form duplication (field/settings fidelity, that
+responses are never copied, and the department/approval carry-over
+permission boundary). The auth/submission
 rate limiters are skipped under `NODE_ENV=test` so test suites that
 legitimately register many accounts don't throttle themselves.
 
@@ -715,6 +718,48 @@ than as a new nested-structure concept.
   matching the three cases the new API tests cover independently; also
   confirmed the print view renders the section's title/description/fields
   unconditionally, as a static paper form should
+
+### Phase 4m — One-click form duplication ✅ done
+
+A "Duplicate" action on any form, from the dashboard's per-form menu — a
+common gap in the flow so far: reusing an existing form's structure meant
+rebuilding it field-by-field from scratch. Standard in every comparable
+form builder (Jotform included), and fully scoped without touching
+anything drag-related.
+
+- `POST /api/forms/:id/duplicate`: clones the source form's fields
+  (fresh ids, same type/label/required/order/config) and settings
+  (description, product code, one-question-per-page) into a new form
+  owned by the caller
+- **Always lands as a Draft**, regardless of the source form's status —
+  cloning a published form should never silently publish a second live
+  copy of it. Its response count always starts at zero; **responses are
+  never copied**, only the form's structure
+- **Department and approval config only carry over if the caller can
+  still create forms in that department themselves** (reusing the same
+  `canCreateInDepartment` check the create/move-department endpoints
+  already use) — otherwise the clone silently falls back to a private
+  draft. Without this, duplicating a department form would hand the
+  caller department-wide visibility they wouldn't otherwise have, just by
+  cloning something they were only allowed to *view*
+- **Only requires view access to the source**, not edit — duplicating
+  never modifies the original, so a department member who can merely view
+  a form can still use it as their own starting point
+- Dashboard: the per-form actions menu (previously delete-only, and only
+  shown to users who could delete) is now shown to every form the user can
+  see at all, offering Duplicate always and Delete only when the user
+  actually has that permission. Duplicating navigates straight into the
+  new draft's builder, matching the "Create" button's existing UX
+- 5 new API tests cover the clone's field/settings fidelity, that
+  responses are never copied, the department/approval carry-over-or-drop
+  behavior in both directions, and the view-only permission boundary
+- Verified end-to-end: duplicated the seeded "Contact Us" form (published,
+  5 fields including a Dropdown with options, approval-enabled in
+  Operations) as its super-admin owner — confirmed the copy landed in the
+  builder as a Draft with all 5 fields and the approval config intact,
+  confirmed on the dashboard it shows 0 responses while the original's 1
+  response and Published status were untouched; ran a clean production
+  build
 
 ### Phase 4 continuation — Builder power features ⬜ not started
 

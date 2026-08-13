@@ -67,5 +67,16 @@ export function useForms() {
     [authFetch, reload],
   );
 
-  return { forms, creatableDepartments, loading, error, reload, createForm, renameForm, deleteForm };
+  const duplicateForm = useCallback(
+    async (id: string) => {
+      const res = await authFetch(`/api/forms/${id}/duplicate`, { method: "POST" });
+      if (!res.ok) throw new Error("Couldn't duplicate the form");
+      const body = await res.json();
+      await reload();
+      return body.form as FormSummaryDto;
+    },
+    [authFetch, reload],
+  );
+
+  return { forms, creatableDepartments, loading, error, reload, createForm, renameForm, deleteForm, duplicateForm };
 }

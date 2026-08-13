@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText, MoreVertical, Plus, Trash2 } from "lucide-react";
+import { Copy, FileText, MoreVertical, Plus, Trash2 } from "lucide-react";
 import type { FormSummaryDto } from "@sfb/shared";
 import { AuthGate } from "@/components/AuthGate";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -11,13 +11,14 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useForms } from "@/hooks/useForms";
 
 function DashboardContent() {
-  const { forms, creatableDepartments, loading, error, createForm, deleteForm } = useForms();
+  const { forms, creatableDepartments, loading, error, createForm, deleteForm, duplicateForm } = useForms();
   const [newTitle, setNewTitle] = useState("");
   const [newDepartmentId, setNewDepartmentId] = useState("");
   const [creating, setCreating] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [formPendingDelete, setFormPendingDelete] = useState<FormSummaryDto | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const router = useRouter();
 
   async function handleConfirmDelete() {
@@ -28,6 +29,17 @@ function DashboardContent() {
       setFormPendingDelete(null);
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleDuplicate(form: FormSummaryDto) {
+    setOpenMenuId(null);
+    setDuplicatingId(form.id);
+    try {
+      const duplicate = await duplicateForm(form.id);
+      router.push(`/dashboard/forms/${duplicate.id}/builder`);
+    } finally {
+      setDuplicatingId(null);
     }
   }
 
@@ -124,18 +136,26 @@ function DashboardContent() {
                     </Link>
                   )}
                 </div>
-                {form.canDelete && (
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setOpenMenuId(openMenuId === form.id ? null : form.id)}
-                      className="rounded-full p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      aria-label="Form actions"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                    {openMenuId === form.id && (
-                      <div className="absolute right-0 z-10 mt-1 w-36 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setOpenMenuId(openMenuId === form.id ? null : form.id)}
+                    disabled={duplicatingId === form.id}
+                    className="rounded-full p-1 text-slate-400 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
+                    aria-label="Form actions"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+                  {openMenuId === form.id && (
+                    <div className="absolute right-0 z-10 mt-1 w-36 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => handleDuplicate(form)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
+                      >
+                        <Copy size={14} /> Duplicate
+                      </button>
+                      {form.canDelete && (
                         <button
                           type="button"
                           onClick={() => {
@@ -146,10 +166,10 @@ function DashboardContent() {
                         >
                           <Trash2 size={14} /> Delete
                         </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <Link href={`/dashboard/forms/${form.id}/builder`} className="font-semibold text-slate-900 dark:text-white">
