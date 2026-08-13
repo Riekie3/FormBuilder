@@ -9,6 +9,15 @@ export interface CreatableDepartment {
   name: string;
 }
 
+async function parseError(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    return body.error ?? "Couldn't import the form";
+  } catch {
+    return "Couldn't import the form";
+  }
+}
+
 export function useForms() {
   const { authFetch } = useAuth();
   const [forms, setForms] = useState<FormSummaryDto[]>([]);
@@ -78,5 +87,27 @@ export function useForms() {
     [authFetch, reload],
   );
 
-  return { forms, creatableDepartments, loading, error, reload, createForm, renameForm, deleteForm, duplicateForm };
+  const importForm = useCallback(
+    async (exported: unknown) => {
+      const res = await authFetch("/api/forms/import", { method: "POST", body: JSON.stringify(exported) });
+      if (!res.ok) throw new Error(await parseError(res));
+      const body = await res.json();
+      await reload();
+      return body.form as FormSummaryDto;
+    },
+    [authFetch, reload],
+  );
+
+  return {
+    forms,
+    creatableDepartments,
+    loading,
+    error,
+    reload,
+    createForm,
+    renameForm,
+    deleteForm,
+    duplicateForm,
+    importForm,
+  };
 }

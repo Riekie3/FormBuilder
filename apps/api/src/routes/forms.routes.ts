@@ -161,6 +161,22 @@ const fieldsPayloadSchema = z.object({
   fields: z.array(fieldInputSchema).max(200),
 });
 
+// Marks a file as ours so import can give a clear "not a valid export"
+// error instead of a raw validation dump on arbitrary JSON, and leaves room
+// for a future format migration if the shape ever needs to change.
+const EXPORT_KIND = "smart-form-builder-export";
+const EXPORT_VERSION = 1;
+
+const importFormSchema = z.object({
+  kind: z.literal(EXPORT_KIND),
+  version: z.number().int(),
+  title: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2000).nullable().optional(),
+  productCode: z.string().trim().max(120).nullable().optional(),
+  oneQuestionPerPage: z.boolean().optional(),
+  fields: z.array(fieldInputSchema).max(200),
+});
+
 const decisionSchema = z.object({
   decision: z.enum(["APPROVED", "REJECTED"]),
   comment: z.string().trim().max(1000).optional(),
@@ -282,6 +298,47 @@ formsRouter.post(
       },
       include: FORM_INCLUDE,
     });
+    const dto = await toSummaryDto(form, 0, { canEdit: true, canDelete: true }, req.userId!);
+    res.status(201).json({ form: dto });
+  }),
+);
+
+// POST /api/forms/import — creates a new private Draft form from a
+// previously-exported JSON file. Always private with no department and no
+// approval config, regardless of what the export happened to contain — the
+// file could have come from an entirely different account or instance, so
+// there's no department/role/approver id here that's guaranteed to still
+// mean the same thing (or exist at all).
+formsRouter.post(
+  "/import",
+  asyncHandler(async (req, res) => {
+    const parsed = importFormSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new HttpError(400, "This doesn't look like a valid Smart Form Builder export file");
+    }
+    const body = parsed.data;
+
+    const form = await prisma.form.create({
+      data: {
+        title: body.title,
+        description: body.description ?? null,
+        slug: slugify(body.title),
+        ownerId: req.userId!,
+        productCode: body.productCode ?? null,
+        oneQuestionPerPage: body.oneQuestionPerPage ?? false,
+        fields: {
+          create: body.fields.map((f) => ({
+            type: f.type,
+            label: f.label,
+            required: f.required,
+            order: f.order,
+            config: f.config,
+          })),
+        },
+      },
+      include: FORM_INCLUDE,
+    });
+
     const dto = await toSummaryDto(form, 0, { canEdit: true, canDelete: true }, req.userId!);
     res.status(201).json({ form: dto });
   }),
@@ -409,6 +466,41 @@ formsRouter.post(
 
     const dto = await toSummaryDto(duplicate, 0, { canEdit: true, canDelete: true }, req.userId!);
     res.status(201).json({ form: dto });
+  }),
+);
+
+// GET /api/forms/:id/export — a portable JSON snapshot of the form's
+// structure, for backing up a form or sharing its design outside this
+// account. Deliberately excludes anything instance-specific: id, slug,
+// status, department/approval linkage (a role id from this account means
+// nothing on a different one), and — obviously — responses. Only needs
+// view access, same reasoning as duplicate: exporting never modifies the
+// source.
+formsRouter.get(
+  "/:id/export",
+  asyncHandler(async (req, res) => {
+    const form = await loadAccessibleForm(req.params.id, req.userId!, "view");
+    const fields = await prisma.field.findMany({ where: { formId: form.id }, orderBy: { order: "asc" } });
+
+    const exportDto = {
+      kind: EXPORT_KIND,
+      version: EXPORT_VERSION,
+      title: form.title,
+      description: form.description,
+      productCode: form.productCode,
+      oneQuestionPerPage: form.oneQuestionPerPage,
+      fields: fields.map((f) => ({
+        type: f.type,
+        label: f.label,
+        required: f.required,
+        order: f.order,
+        config: f.config,
+      })),
+    };
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${form.slug}.json"`);
+    res.send(JSON.stringify(exportDto, null, 2));
   }),
 );
 

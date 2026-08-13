@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, FileText, MoreVertical, Plus, Trash2 } from "lucide-react";
+import { Copy, FileText, MoreVertical, Plus, Trash2, Upload } from "lucide-react";
 import type { FormSummaryDto } from "@sfb/shared";
 import { AuthGate } from "@/components/AuthGate";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useForms } from "@/hooks/useForms";
 
 function DashboardContent() {
-  const { forms, creatableDepartments, loading, error, createForm, deleteForm, duplicateForm } = useForms();
+  const { forms, creatableDepartments, loading, error, createForm, deleteForm, duplicateForm, importForm } = useForms();
   const [newTitle, setNewTitle] = useState("");
   const [newDepartmentId, setNewDepartmentId] = useState("");
   const [creating, setCreating] = useState(false);
@@ -19,6 +19,9 @@ function DashboardContent() {
   const [formPendingDelete, setFormPendingDelete] = useState<FormSummaryDto | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   async function handleConfirmDelete() {
@@ -40,6 +43,30 @@ function DashboardContent() {
       router.push(`/dashboard/forms/${duplicate.id}/builder`);
     } finally {
       setDuplicatingId(null);
+    }
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be picked again after an error
+    if (!file) return;
+
+    setImportError(null);
+    setImporting(true);
+    try {
+      const text = await file.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new Error("That file isn't valid JSON");
+      }
+      const imported = await importForm(parsed);
+      router.push(`/dashboard/forms/${imported.id}/builder`);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Couldn't import the form");
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -92,10 +119,26 @@ function DashboardContent() {
           <button type="button" onClick={handleCreate} disabled={creating} className="btn-primary">
             <Plus size={16} /> Create
           </button>
+          <button
+            type="button"
+            onClick={() => importInputRef.current?.click()}
+            disabled={importing}
+            className="btn-secondary"
+          >
+            <Upload size={16} /> {importing ? "Importing..." : "Import"}
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleImportFile}
+            className="hidden"
+          />
         </div>
       </div>
 
       {error && <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {importError && <p className="mt-4 text-sm text-red-600 dark:text-red-400">{importError}</p>}
 
       {loading ? (
         <p className="mt-10 text-sm text-slate-500 dark:text-slate-400">Loading forms...</p>

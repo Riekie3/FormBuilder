@@ -4,7 +4,7 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a-4m of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a-4n of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a
 single-level approval workflow, 12 additional field types (Address, Rating,
 Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
@@ -13,9 +13,9 @@ with conditional field logic (now group-level via Sections, not just
 per-field), builder undo/redo/multi-select/copy-paste, answer piping with
 URL query-param pre-fill, save-and-resume, custom field validation rules, a
 one-question-per-page conversational layout, half/third-width fields for
-side-by-side layouts, a printable fill-by-hand view of a form, and
-one-click form duplication. See [Roadmap](#roadmap) for what's planned in
-each later phase.
+side-by-side layouts, a printable fill-by-hand view of a form, one-click
+form duplication, and portable JSON export/import of a form's design. See
+[Roadmap](#roadmap) for what's planned in each later phase.
 
 ## Stack
 
@@ -96,9 +96,11 @@ merely non-required-but-filled-in still gets validated), the Repeater
 field's required-at-zero-rows behavior, Section-level conditional
 visibility (a hidden section exempts its fields from required-validation,
 a visible one still enforces them, and a section's scope correctly stops
-at a Page Break), and form duplication (field/settings fidelity, that
+at a Page Break), form duplication (field/settings fidelity, that
 responses are never copied, and the department/approval carry-over
-permission boundary). The auth/submission
+permission boundary), and portable export/import (the export shape omits
+instance-specific data, a round-trip preserves field fidelity, and
+malformed import files are rejected). The auth/submission
 rate limiters are skipped under `NODE_ENV=test` so test suites that
 legitimately register many accounts don't throttle themselves.
 
@@ -760,6 +762,50 @@ anything drag-related.
   confirmed on the dashboard it shows 0 responses while the original's 1
   response and Published status were untouched; ran a clean production
   build
+
+### Phase 4n — Portable form export/import ✅ done
+
+A form's design (not its responses) can now be exported as a standalone
+JSON file and imported back — either as a backup, or to share a form's
+structure with someone else, including across accounts. Distinct from
+Phase 4m's Duplicate: duplication is a same-account "copy for myself"
+shortcut, while export/import produces a real portable file that can leave
+the account (or the running instance) entirely and come back later.
+
+- `GET /api/forms/:id/export`: a JSON snapshot of the form's title,
+  description, product code, one-question-per-page flag, and fields —
+  deliberately **excludes everything instance-specific**: id, slug,
+  status, and department/approval linkage. A department or approver-role
+  id from the exporting account wouldn't mean anything (or might not even
+  exist) wherever the file ends up, so none of it is included at all,
+  going a step further than Duplicate's "carry it over only if the
+  caller can still create there" fallback
+- `POST /api/forms/import`: validates the uploaded JSON against the same
+  field schema the builder's own autosave already uses, then creates a
+  new form from it. **Always private with no department, always a
+  Draft** — there's no safe permission check to run against a department
+  id that came from an arbitrary file, so import doesn't attempt one; it
+  always lands somewhere private the importer fully controls
+  first
+- The export carries a `kind`/`version` marker so a malformed or
+  unrelated JSON file gets a clear "this doesn't look like a valid Smart
+  Form Builder export file" error instead of a raw validation dump —
+  and leaves room for a future format migration if the shape ever changes
+- Builder gets an "Export" button (next to Print) that downloads the
+  form's `{slug}.json`; the dashboard gets an "Import" button that reads a
+  selected `.json` file client-side and, on success, navigates straight
+  into the new draft's builder — matching Create/Duplicate's existing UX
+- 4 new API tests cover the export shape (instance-specific fields
+  genuinely absent, not just unused), a full export → import round-trip
+  preserving field fidelity, and that malformed/wrong-`kind` payloads are
+  rejected with a 400
+- Verified end-to-end: exported the seeded "Contact Us" form and confirmed
+  the JSON response directly (no id/slug/status/department/approval keys
+  present); imported a hand-built export file via a simulated file input
+  and confirmed the new form landed in the builder with all fields intact
+  and no department attached; confirmed a garbage JSON file surfaces the
+  friendly rejection message inline on the dashboard instead of a silent
+  failure; ran a clean production build
 
 ### Phase 4 continuation — Builder power features ⬜ not started
 

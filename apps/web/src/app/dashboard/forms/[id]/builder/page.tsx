@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { ArrowLeft, Eye, Loader2, Printer, Radio, Check, Redo2, Undo2 } from "lucide-react";
+import { ArrowLeft, Download, Eye, Loader2, Printer, Radio, Check, Redo2, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { AuthGate } from "@/components/AuthGate";
+import { useAuth } from "@/context/AuthContext";
 import { useFormBuilder } from "@/hooks/useFormBuilder";
 import { FieldPalette } from "@/components/builder/FieldPalette";
 import { Canvas } from "@/components/builder/Canvas";
@@ -65,9 +66,11 @@ function BuilderContent() {
     updateFormMetaImmediate,
     debouncedMetaSave,
   } = useFormBuilder(params.id);
+  const { authFetch } = useAuth();
 
   const [showPreview, setShowPreview] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y redo, Ctrl/Cmd+C/V copy
   // and paste selected fields — guarded against any typing target so these
@@ -111,6 +114,23 @@ function BuilderContent() {
   const selectedField = selectedIds.size === 1 ? fields.find((f) => selectedIds.has(f.id)) ?? null : null;
   const publicUrl =
     typeof window !== "undefined" ? `${window.location.origin}/f/${form.slug}` : `/f/${form.slug}`;
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await authFetch(`/api/forms/${form!.id}/export`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${form!.slug}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function togglePublish() {
     setPublishing(true);
@@ -177,6 +197,9 @@ function BuilderContent() {
                 className="btn-secondary text-sm"
               >
                 <Printer size={16} /> Print
+              </button>
+              <button type="button" onClick={handleExport} disabled={exporting} className="btn-secondary text-sm">
+                <Download size={16} /> Export
               </button>
               <button
                 type="button"
