@@ -15,6 +15,7 @@ interface Props {
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
   onMove: (dragIndex: number, hoverIndex: number) => void;
+  onMoveField: (id: string, direction: "up" | "down") => void;
   onDropNewField: (type: FieldType) => void;
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -28,6 +29,7 @@ export function Canvas({
   onDuplicate,
   onDelete,
   onMove,
+  onMoveField,
   onDropNewField,
   onDragStart,
   onDragEnd,
@@ -68,6 +70,10 @@ export function Canvas({
               onDuplicate={() => onDuplicate(field.id)}
               onDelete={() => onDelete(field.id)}
               onMove={onMove}
+              onMoveUp={() => onMoveField(field.id, "up")}
+              onMoveDown={() => onMoveField(field.id, "down")}
+              isFirst={index === 0}
+              isLast={index === fields.length - 1}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
             />

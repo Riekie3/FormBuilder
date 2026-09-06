@@ -4,7 +4,7 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a-4o of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a-4p of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a
 single-level approval workflow, 13 additional field types (Address, Rating,
 Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
@@ -14,8 +14,9 @@ per-field), builder undo/redo/multi-select/copy-paste, answer piping with
 URL query-param pre-fill, save-and-resume, custom field validation rules, a
 one-question-per-page conversational layout, half/third-width fields for
 side-by-side layouts, a printable fill-by-hand view of a form, one-click
-form duplication, portable JSON export/import of a form's design, and a
-Lookup field with per-form, autocomplete-backed reference lists. See
+form duplication, portable JSON export/import of a form's design, a
+Lookup field with per-form, autocomplete-backed reference lists, and
+keyboard/button field reordering as a non-drag alternative. See
 [Roadmap](#roadmap) for what's planned in each later phase.
 
 ## Stack
@@ -870,15 +871,57 @@ out of scope entirely — English-only is all that's needed.
   successfully both client- and server-side, and confirmed the print view
   renders it as a plain blank line (no dataset content leaks onto paper)
 
+### Phase 4p — Keyboard/button field reordering ✅ done
+
+A non-drag way to reorder fields — Move up / Move down buttons on every
+field card, plus Ctrl/Cmd+↑/↓ when exactly one field is selected. Picked
+as the next builder-UX item specifically because it closes the same gap
+alignment guides are stuck behind (drag-only reordering) from the other
+direction: instead of making drag nicer, it makes drag *optional*. It's
+also a real accessibility gap on its own — reordering previously had no
+keyboard path at all, meaning it was unusable without a mouse (or, same
+constraint, without dispatchable pointer drag events — exactly what left
+this sandbox unable to verify anything drag-based all along).
+
+- `moveField(id, direction)` in `useFormBuilder`: a single discrete
+  swap-and-reindex, pushing undo history the same way every other
+  one-shot mutator does (duplicate, delete, paste) — distinct from
+  drag's own history handling, which snapshots once per *gesture*
+  (`beginReorder`/`commitReorder`) rather than once per step
+- Move up/down buttons sit in `FieldItem`'s existing hover-revealed
+  action row, disabled at whichever end of the list they'd otherwise
+  push past
+- Ctrl/Cmd+↑/↓ reuses the builder's existing keyboard-shortcut plumbing
+  (same `isTypingTarget` guard as undo/redo/copy/paste, so it never
+  hijacks arrow-key navigation inside a text input, textarea, select, or
+  the label field) — only fires with exactly one field selected, matching
+  the existing single-field assumption undo/redo's selection-clearing
+  already makes
+- Verified end-to-end: confirmed Move up is disabled on the first field
+  and Move down on the last; clicking Move down swapped two fields and
+  the change persisted server-side (checked via a direct API fetch, not
+  just the UI); confirmed Ctrl+↑ reordered the currently-selected field
+  and selection correctly followed it to its new position; confirmed
+  Undo reversed both the button-click and keyboard-shortcut moves; ran a
+  clean production build
+
+(While verifying this, ran into a Windows-specific dev-workflow trap
+worth naming: running `next build` and then restarting `next dev` on top
+of the same `.next` directory serves a broken mix of production and dev
+artifacts — the page loads with no CSS and React never hydrates, so
+clicks and submissions silently do nothing. Easy to mistake for a real
+app bug; the fix is just deleting `.next` before every post-build `npm
+run dev:web` restart.)
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
-- **Remaining builder UX polish**: alignment guides during drag — field
-  width/resizing (Phase 4j), a print view mode (Phase 4k), and the Lookup
-  field (Phase 4o) are all done; alignment guides need live drag-position
-  feedback, which isn't meaningfully verifiable in this sandbox's browser
-  pane (react-dnd's HTML5 backend doesn't respond to synthetic drag
-  events), so it's left for a session where real drag interaction can be
-  tested. This is now the only item left in this backlog slot.
+- **Alignment guides during drag**: the one item left in this backlog
+  slot. Needs live drag-position visual feedback, which isn't
+  meaningfully verifiable in this sandbox's browser pane (react-dnd's
+  HTML5 backend doesn't respond to synthetic drag events) — left for a
+  session where real drag interaction can be tested. Phase 4p above
+  covers the same underlying gap (reordering without relying on drag)
+  from a different, fully-verifiable angle in the meantime.
 
 (The builder UX polish item above is sourced from a competitive review of
 Jotform's public features page and their open-source `dnd-builder`

@@ -50,6 +50,7 @@ function BuilderContent() {
     clearSelection,
     addField,
     updateField,
+    moveField,
     removeField,
     removeFields,
     duplicateField,
@@ -101,11 +102,14 @@ function BuilderContent() {
       } else if (key === "v") {
         e.preventDefault();
         pasteFields();
+      } else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && selectedIds.size === 1) {
+        e.preventDefault();
+        moveField([...selectedIds][0], e.key === "ArrowUp" ? "up" : "down");
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [undo, redo, copyFields, pasteFields, selectedIds]);
+  }, [undo, redo, copyFields, pasteFields, moveField, selectedIds]);
 
   if (loading || !form) {
     return <div className="p-10 text-sm text-slate-500 dark:text-slate-400">Loading form...</div>;
@@ -235,6 +239,7 @@ function BuilderContent() {
               onDuplicate={duplicateField}
               onDelete={removeField}
               onMove={reorderFields}
+              onMoveField={moveField}
               onDropNewField={addField}
               onDragStart={beginReorder}
               onDragEnd={commitReorder}

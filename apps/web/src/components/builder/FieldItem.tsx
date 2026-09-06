@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useDrag, useDrop } from "react-dnd";
-import { Copy, GripVertical, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, GripVertical, Trash2 } from "lucide-react";
 import type { FieldDto } from "@sfb/shared";
 import type { SelectModifiers } from "@/hooks/useFormBuilder";
 import { FormFieldRenderer } from "@/components/FormFieldRenderer";
@@ -25,9 +25,30 @@ interface Props {
   onMove: (dragIndex: number, hoverIndex: number) => void;
   onDragStart: () => void;
   onDragEnd: () => void;
+  // The keyboard/button alternative to drag-to-reorder — no pointer
+  // precision needed, and (unlike drag) fully exercisable by a screen
+  // reader or anything else that can't perform a drag gesture.
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  isFirst: boolean;
+  isLast: boolean;
 }
 
-export function FieldItem({ field, index, selected, onSelect, onDuplicate, onDelete, onMove, onDragStart, onDragEnd }: Props) {
+export function FieldItem({
+  field,
+  index,
+  selected,
+  onSelect,
+  onDuplicate,
+  onDelete,
+  onMove,
+  onDragStart,
+  onDragEnd,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const Icon = FIELD_TYPE_ICONS[field.type];
 
@@ -81,6 +102,32 @@ export function FieldItem({ field, index, selected, onSelect, onDuplicate, onDel
           <Icon size={14} />
         </div>
         <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveUp();
+            }}
+            disabled={isFirst}
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-slate-800"
+            aria-label="Move field up"
+            title="Move up"
+          >
+            <ChevronUp size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveDown();
+            }}
+            disabled={isLast}
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-slate-800"
+            aria-label="Move field down"
+            title="Move down"
+          >
+            <ChevronDown size={14} />
+          </button>
           <button
             type="button"
             onClick={(e) => {

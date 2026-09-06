@@ -244,6 +244,33 @@ export function useFormBuilder(formId: string) {
     [pushHistory],
   );
 
+  // A discrete, single-step reorder — the keyboard/button alternative to
+  // drag-to-reorder, which needs no pointer precision at all. Unlike the
+  // drag path (which snapshots history once per *gesture*, at start/end via
+  // beginReorder/commitReorder), each call here is its own complete action,
+  // so it pushes history the same way every other discrete mutator does.
+  const moveField = useCallback(
+    (id: string, direction: "up" | "down") => {
+      const current = fieldsRef.current;
+      const index = current.findIndex((f) => f.id === id);
+      if (index === -1) return;
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.length) return;
+
+      pushHistory(current);
+      dirtyRef.current = true;
+      setFields((prev) => {
+        const next = [...prev];
+        const fromIdx = next.findIndex((f) => f.id === id);
+        const toIdx = direction === "up" ? fromIdx - 1 : fromIdx + 1;
+        if (fromIdx === -1 || toIdx < 0 || toIdx >= next.length) return prev;
+        [next[fromIdx], next[toIdx]] = [next[toIdx], next[fromIdx]];
+        return next.map((f, i) => ({ ...f, order: i }));
+      });
+    },
+    [pushHistory],
+  );
+
   const removeField = useCallback(
     (id: string) => {
       pushHistory(fieldsRef.current);
@@ -435,6 +462,7 @@ export function useFormBuilder(formId: string) {
     clearSelection,
     addField,
     updateField,
+    moveField,
     removeField,
     removeFields,
     duplicateField,
