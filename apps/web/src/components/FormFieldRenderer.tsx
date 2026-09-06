@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import DOMPurify from "dompurify";
 import { Plus, Trash2 } from "lucide-react";
-import type { FieldDto } from "@sfb/shared";
+import type { FieldDto, LookupDataset } from "@sfb/shared";
 import { pipeAnswers } from "@/lib/answerPiping";
 import { renderSafeMarkdown } from "@/lib/safeMarkdown";
 import { SignaturePad } from "@/components/SignaturePad";
@@ -18,6 +19,11 @@ interface Props {
   // token. Omitted (e.g. the builder canvas's static preview) means no
   // answers exist yet, so tokens simply pipe in as empty.
   allValues?: Record<string, string>;
+  // The form's named reference lists — a LOOKUP field resolves its
+  // config.lookupDatasetId against these to know what to suggest. Omitted
+  // (e.g. the builder canvas's static field preview) just means no
+  // suggestions are offered; the field still renders as plain text input.
+  lookupDatasets?: LookupDataset[];
 }
 
 interface AddressValue {
@@ -58,9 +64,12 @@ function parseRepeaterRows(raw: string): Record<string, string>[] {
 
 // Shared between the builder's live preview and the public form renderer so
 // field behavior never drifts between "what you designed" and "what visitors see".
-export function FormFieldRenderer({ field, value, onChange, error, disabled, allValues = {} }: Props) {
+export function FormFieldRenderer({ field, value, onChange, error, disabled, allValues = {}, lookupDatasets = [] }: Props) {
   const pipedLabel = pipeAnswers(field.label, allValues);
   const pipedHelpText = field.config.helpText ? pipeAnswers(field.config.helpText, allValues) : undefined;
+  // Only ever used by the LOOKUP case below — declared here because hooks
+  // can't be called conditionally inside a switch branch.
+  const [lookupOpen, setLookupOpen] = useState(false);
 
   const baseLabel = (
     <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -450,6 +459,52 @@ export function FormFieldRenderer({ field, value, onChange, error, disabled, all
           <button type="button" disabled={disabled} onClick={addRow} className="btn-secondary text-xs">
             <Plus size={14} /> Add row
           </button>
+        </div>,
+      );
+    }
+
+    case "LOOKUP": {
+      const dataset = lookupDatasets.find((d) => d.id === field.config.lookupDatasetId);
+      const options = dataset?.values ?? [];
+      // A forgiving autocomplete, not a locked-to-the-list dropdown: the
+      // visitor can pick a suggestion or keep typing something the list
+      // doesn't have at all — matches are a convenience, never a constraint.
+      const query = value.trim().toLowerCase();
+      const matches = query ? options.filter((v) => v.toLowerCase().includes(query)).slice(0, 8) : [];
+      return wrap(
+        <div className="relative">
+          <input
+            type="text"
+            className="input-field"
+            placeholder={field.config.placeholder ?? (dataset ? `Search ${dataset.name}...` : undefined)}
+            value={value}
+            maxLength={field.config.maxLength}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={() => setLookupOpen(true)}
+            onBlur={() => setLookupOpen(false)}
+          />
+          {lookupOpen && matches.length > 0 && (
+            <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-800">
+              {matches.map((v) => (
+                <li key={v}>
+                  <button
+                    type="button"
+                    // Stops the input from blurring (and the dropdown from
+                    // closing) before the click below can register.
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      onChange(v);
+                      setLookupOpen(false);
+                    }}
+                    className="block w-full px-3 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-700"
+                  >
+                    {v}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>,
       );
     }

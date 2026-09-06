@@ -17,6 +17,7 @@ import {
   Phone,
   PenLine,
   Rows3,
+  Search,
   Star,
   Table2,
   Type,
@@ -47,4 +48,5 @@ export const FIELD_TYPE_ICONS: Record<FieldType, LucideIcon> = {
   MATRIX: Table2,
   REPEATER: ListPlus,
   SECTION: Rows3,
+  LOOKUP: Search,
 };

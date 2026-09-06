@@ -5,7 +5,7 @@ import { asyncHandler, HttpError } from "../middleware/errorHandler";
 import { publicSubmissionRateLimit } from "../middleware/rateLimit";
 import { sha256Hex } from "../lib/hash";
 import { computeVisibleFieldIds, getFieldValidationError, isComputedField, isFieldAnswerComplete, isLayoutField } from "@sfb/shared";
-import type { FieldDto, PublicFormDto } from "@sfb/shared";
+import type { FieldDto, LookupDataset, PublicFormDto } from "@sfb/shared";
 import type { Field as PrismaField } from "@prisma/client";
 
 export const publicRouter = Router();
@@ -52,6 +52,7 @@ publicRouter.get(
       fields: fields.map(toFieldDto),
       requiresApproval: form.requiresApproval,
       oneQuestionPerPage: form.oneQuestionPerPage,
+      lookupDatasets: (form.lookupDatasets as unknown as LookupDataset[] | null) ?? [],
     };
     res.json({ form: dto });
   }),

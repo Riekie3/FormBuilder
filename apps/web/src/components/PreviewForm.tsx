@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import type { FieldDto } from "@sfb/shared";
+import type { FieldDto, LookupDataset } from "@sfb/shared";
 import { computeVisibleFieldIds, getFieldValidationError, isComputedField, isFieldAnswerComplete, isLayoutField } from "@sfb/shared";
 import { FormFieldRenderer } from "@/components/FormFieldRenderer";
 import { widthSpanClass } from "@/lib/fieldWidth";
@@ -28,6 +28,8 @@ interface Props {
   onSaveDraft?: (answers: Record<string, string>, token: string | null) => Promise<{ token: string; link: string }>;
   // "Conversational" display: one real question per page. See formPages.ts.
   oneQuestionPerPage?: boolean;
+  // The form's named reference lists, for any LOOKUP fields to suggest from.
+  lookupDatasets?: LookupDataset[];
 }
 
 // Renders a fillable form. In "preview" mode (used by the builder) submissions
@@ -46,6 +48,7 @@ export function PreviewForm({
   initialResumeToken,
   onSaveDraft,
   oneQuestionPerPage = false,
+  lookupDatasets = [],
 }: Props) {
   const [values, setValues] = useState<Record<string, string>>(() => initialValues ?? {});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -230,6 +233,7 @@ export function PreviewForm({
                 onChange={(v) => setValues((prev) => ({ ...prev, [field.id]: v }))}
                 error={errors[field.id]}
                 allValues={values}
+                lookupDatasets={lookupDatasets}
               />
             </div>
           ))}

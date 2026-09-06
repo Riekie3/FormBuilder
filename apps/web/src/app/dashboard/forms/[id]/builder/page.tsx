@@ -274,6 +274,9 @@ function BuilderContent() {
               selectedCount={selectedIds.size}
               onBulkDuplicate={() => duplicateFields(selectedIds)}
               onBulkDelete={() => removeFields(selectedIds)}
+              lookupDatasets={form.lookupDatasets}
+              onLookupDatasetsChange={(next) => debouncedMetaSave({ lookupDatasets: next })}
+              onLookupDatasetsChangeImmediate={(next) => updateFormMetaImmediate({ lookupDatasets: next })}
             />
           </div>
         </main>
@@ -286,6 +289,7 @@ function BuilderContent() {
           fields={fields}
           onClose={() => setShowPreview(false)}
           oneQuestionPerPage={form.oneQuestionPerPage}
+          lookupDatasets={form.lookupDatasets}
         />
       )}
     </DndProvider>

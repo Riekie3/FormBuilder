@@ -4,17 +4,18 @@ An original, Jotform-inspired online form builder: drag-and-drop form design, a
 public form renderer, response collection with CSV export, and JWT auth — built
 as a TypeScript monorepo (Next.js + Express + Prisma/PostgreSQL).
 
-This is **Phases 1-3 plus Phase 4a-4n of 8** on the roadmap: core form
+This is **Phases 1-3 plus Phase 4a-4o of 8** on the roadmap: core form
 building/submission, department-based roles and permissions, a
-single-level approval workflow, 12 additional field types (Address, Rating,
+single-level approval workflow, 13 additional field types (Address, Rating,
 Signature, Divider, Heading, HTML Block, Hidden, Rich Text, Calculation,
-Matrix, Line Items, Section) plus product code naming, multi-page forms
-with conditional field logic (now group-level via Sections, not just
+Matrix, Line Items, Section, Lookup) plus product code naming, multi-page
+forms with conditional field logic (now group-level via Sections, not just
 per-field), builder undo/redo/multi-select/copy-paste, answer piping with
 URL query-param pre-fill, save-and-resume, custom field validation rules, a
 one-question-per-page conversational layout, half/third-width fields for
 side-by-side layouts, a printable fill-by-hand view of a form, one-click
-form duplication, and portable JSON export/import of a form's design. See
+form duplication, portable JSON export/import of a form's design, and a
+Lookup field with per-form, autocomplete-backed reference lists. See
 [Roadmap](#roadmap) for what's planned in each later phase.
 
 ## Stack
@@ -98,9 +99,12 @@ visibility (a hidden section exempts its fields from required-validation,
 a visible one still enforces them, and a section's scope correctly stops
 at a Page Break), form duplication (field/settings fidelity, that
 responses are never copied, and the department/approval carry-over
-permission boundary), and portable export/import (the export shape omits
+permission boundary), portable export/import (the export shape omits
 instance-specific data, a round-trip preserves field fidelity, and
-malformed import files are rejected). The auth/submission
+malformed import files are rejected), and Lookup field reference lists
+(dataset round-tripping, required-validation treating it like Text while
+still accepting off-list values, and datasets carrying through
+duplicate/export/import). The auth/submission
 rate limiters are skipped under `NODE_ENV=test` so test suites that
 legitimately register many accounts don't throttle themselves.
 
@@ -247,8 +251,7 @@ covers the practical "what's waiting on me" need in the meantime.
   (formula referencing other Number fields by `{fieldId}` token, hand-rolled
   safe arithmetic evaluator, live-recomputed in the preview/public form)
 - File/Image Upload and Payment still wait for Phase 6's storage/
-  payment-provider work; Linked/Lookup and Multilingual forms remain deferred
-  below pending spec clarification
+  payment-provider work; the Linked/Lookup field shipped later, in Phase 4o
 - **Product code naming** (SOW 2.7): a `Form.productCode` field, editable
   from the builder, shown as a badge on dashboard form cards
 - Per-type builder settings panel (`FieldSettingsPanel.tsx`): hides
@@ -807,23 +810,75 @@ the account (or the running instance) entirely and come back later.
   friendly rejection message inline on the dashboard instead of a silent
   failure; ran a clean production build
 
+### Phase 4o — Linked/Lookup field ✅ done
+
+Matches SOW 2.2 ("Database Linked form"). Resolved with the client: a
+dataset is scoped to **one form**, reusable by any number of Lookup fields
+within it (not a global, cross-form library); anyone who can already edit
+the form can manage its datasets, with no separate permission concept
+needed; and an unmatched entry the visitor types is still accepted — the
+list is a suggestion aid, not a hard constraint. Multilingual forms
+(the other item that had been sitting in this same backlog slot) is now
+out of scope entirely — English-only is all that's needed.
+
+- **Named reference lists live on the form**, not the field:
+  `Form.lookupDatasets` (`[{ id, name, values: string[] }]`), so a
+  "Companies" list and a "Products" list can coexist, and a "Employer"
+  field and a "Referred by" field can both point at the same list without
+  it being copy-pasted twice
+- **Scoping call on "Excel/CSV"**: real `.xlsx` is a binary format needing
+  either a parsing library or file storage, and neither exists yet (file
+  storage is explicitly Phase 6). This pass supports pasting a list
+  (one value per line) or uploading a plain `.csv` — parsed entirely
+  client-side with a deliberately minimal, hand-rolled single-column
+  reader (`apps/web/src/lib/simpleCsv.ts`, unit tested), not a general
+  CSV library. True `.xlsx` upload is a natural Phase 6 follow-up
+- **Autocomplete, not a locked dropdown**: as the visitor types, every
+  case-insensitive substring match is suggested (a Lookup field renders as
+  a text input with a suggestions list beneath it); clicking one fills it
+  in, but the visitor can still type and submit something the list doesn't
+  have at all — required-ness and format validation both treat it exactly
+  like a Text field
+- Builder UI lives inside the Lookup field's own settings panel — a
+  dataset picker (pick an existing list, or create one), and when one's
+  selected, its name and values become editable inline (plus a CSV-upload
+  button and a delete-list button) — no separate "manage datasets" page
+- **A real race condition found and fixed during verification, not a
+  hypothetical**: editing a dataset's name and then immediately its values
+  (both independently debounced saves) could silently clobber each other —
+  each save built the *entire* datasets array from the same stale
+  pre-edit prop, so whichever save actually fired last would overwrite the
+  other's change. Fixed with a ref that tracks "what we've actually asked
+  to save" as the baseline for every edit, reset only when the selected
+  field changes (not on every incoming prop update, which would have
+  reintroduced the same bug from the other direction). Reproduced the
+  exact race before the fix and confirmed both edits now survive together
+- Dataset creation/deletion/CSV-import go through an immediate save
+  (awaited before the field's own `lookupDatasetId` is set) rather than
+  the debounced path typing uses — a debounced create would leave a brief
+  window where the field points at a dataset id that doesn't exist yet in
+  the builder's own state
+- 6 new API tests cover the dataset round-tripping through PATCH/GET, a
+  field's `lookupDatasetId` round-tripping through the fields endpoint,
+  required-validation treating it like Text while still accepting
+  off-list values, datasets carrying through duplicate/export/import, and
+  an oversized dataset list being rejected
+- Verified end-to-end: created a "Companies" list with 5 entries on a
+  Lookup field in the browser, confirmed typing "in" suggests both
+  "Initech" and "Stark Industries", confirmed clicking a suggestion fills
+  the field, confirmed a completely unlisted value still submits
+  successfully both client- and server-side, and confirmed the print view
+  renders it as a plain blank line (no dataset content leaks onto paper)
+
 ### Phase 4 continuation — Builder power features ⬜ not started
 
-- **Linked/Lookup field** (SOW 2.2 "Database Linked form"): import a
-  reference list (Excel/CSV) as a data source; bind a field to it with
-  prefix-based autocomplete. Needs a clarified functional spec before
-  estimating — open questions: is the dataset reusable across forms or
-  scoped to one field, who can edit it, what happens with ambiguous prefixes
 - **Remaining builder UX polish**: alignment guides during drag — field
-  width/resizing (Phase 4j) and a print view mode (Phase 4k) are both done;
-  alignment guides need live drag-position feedback, which isn't
-  meaningfully verifiable in this sandbox's browser pane (react-dnd's
-  HTML5 backend doesn't respond to synthetic drag events), so it's left
-  for a session where real drag interaction can be tested
-- **Multilingual forms**: translate a form's labels/text for multiple
-  locales — real i18n infrastructure, needs its own scoping pass before
-  estimating (translation storage model, locale switcher UX, whether
-  submissions record which locale was used)
+  width/resizing (Phase 4j), a print view mode (Phase 4k), and the Lookup
+  field (Phase 4o) are all done; alignment guides need live drag-position
+  feedback, which isn't meaningfully verifiable in this sandbox's browser
+  pane (react-dnd's HTML5 backend doesn't respond to synthetic drag
+  events), so it's left for a session where real drag interaction can be
+  tested. This is now the only item left in this backlog slot.
 
 (The builder UX polish item above is sourced from a competitive review of
 Jotform's public features page and their open-source `dnd-builder`

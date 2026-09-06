@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FieldDto, FieldOption, FieldType, FormDetailDto } from "@sfb/shared";
+import type { FieldDto, FieldOption, FieldType, FormDetailDto, LookupDataset } from "@sfb/shared";
 import { fieldSupportsOptions, FIELD_TYPE_LABELS } from "@sfb/shared";
 import { useAuth } from "@/context/AuthContext";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
@@ -411,6 +411,7 @@ export function useFormBuilder(formId: string) {
       approverRoleId?: string | null;
       productCode?: string | null;
       oneQuestionPerPage?: boolean;
+      lookupDatasets?: LookupDataset[];
     }) => {
       const res = await authFetch(`/api/forms/${formId}`, { method: "PATCH", body: JSON.stringify(patch) });
       if (res.ok) {

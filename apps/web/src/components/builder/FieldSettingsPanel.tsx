@@ -1,8 +1,10 @@
 "use client";
 
-import { Copy, Plus, Trash2 } from "lucide-react";
-import type { FieldCondition, FieldDto } from "@sfb/shared";
+import { useEffect, useRef } from "react";
+import { Copy, Plus, Trash2, Upload } from "lucide-react";
+import type { FieldCondition, FieldDto, LookupDataset } from "@sfb/shared";
 import { fieldSupportsOptions, isComputedField, isLayoutField, isPageBreak } from "@sfb/shared";
+import { parseSimpleCsv } from "@/lib/simpleCsv";
 
 interface Props {
   field: FieldDto | null;
@@ -11,16 +13,38 @@ interface Props {
   selectedCount?: number;
   onBulkDuplicate?: () => void;
   onBulkDelete?: () => void;
+  // LOOKUP fields autocomplete against one of the form's named reference
+  // lists — these live on the form, not the field, so managing them goes
+  // through the builder page rather than the field-level onChange above.
+  // Debounced (typing a name/values doesn't save on every keystroke);
+  // `Immediate` is used for creating/deleting a list, where the field's own
+  // config.lookupDatasetId gets set in the same action and needs the new
+  // list to already exist server-side-equivalent (in `form` state) first —
+  // a debounced create would leave a brief window where the field points at
+  // a dataset id that doesn't exist in `lookupDatasets` yet.
+  lookupDatasets?: LookupDataset[];
+  onLookupDatasetsChange?: (next: LookupDataset[]) => void;
+  onLookupDatasetsChangeImmediate?: (next: LookupDataset[]) => Promise<boolean>;
 }
 
-const PLACEHOLDER_TYPES = new Set(["TEXT", "PARAGRAPH", "EMAIL", "PHONE", "NUMBER"]);
+const PLACEHOLDER_TYPES = new Set(["TEXT", "PARAGRAPH", "EMAIL", "PHONE", "NUMBER", "LOOKUP"]);
 // Excluded from width choices: these either have complex internal
 // sub-layouts that get cramped at half/third width (Address, Matrix,
 // Repeater) or are true full-bleed content by nature (Signature, Divider,
 // Page Break).
 const WIDTH_UNSUPPORTED_TYPES = new Set(["ADDRESS", "MATRIX", "REPEATER", "SIGNATURE", "DIVIDER", "PAGE_BREAK", "SECTION"]);
 
-export function FieldSettingsPanel({ field, allFields, onChange, selectedCount = 0, onBulkDuplicate, onBulkDelete }: Props) {
+export function FieldSettingsPanel({
+  field,
+  allFields,
+  onChange,
+  selectedCount = 0,
+  onBulkDuplicate,
+  onBulkDelete,
+  lookupDatasets = [],
+  onLookupDatasetsChange,
+  onLookupDatasetsChangeImmediate,
+}: Props) {
   if (selectedCount > 1) {
     return (
       <div className="card space-y-3 p-4">
@@ -206,6 +230,80 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
   function removeRepeaterColumn(id: string) {
     if (!field) return;
     onChange({ config: { ...field.config, repeaterColumns: repeaterColumns.filter((c) => c.id !== id) } });
+  }
+
+  const selectedDataset =
+    field.type === "LOOKUP" ? lookupDatasets.find((d) => d.id === field.config.lookupDatasetId) : undefined;
+
+  // Editing a dataset's name and its values are two independent debounced
+  // saves — each one has to build the *whole* lookupDatasets array to send.
+  // Deriving that from the `lookupDatasets` prop directly is a real bug: the
+  // prop only catches up ~700ms after a save round-trips, so a name edit
+  // immediately followed by a values edit (both well within one debounce
+  // window) would each build their array from the same stale, pre-edit
+  // prop — and whichever save actually fires last would silently overwrite
+  // the other's change. This ref is the always-current "what we've actually
+  // asked to save" baseline, synced from props only when the selected field
+  // changes (not on every prop update, or an in-flight edit's own eventual
+  // server-confirmed echo would clobber a *newer* local edit the same way).
+  const lookupDatasetsRef = useRef<LookupDataset[]>(lookupDatasets);
+  useEffect(() => {
+    lookupDatasetsRef.current = lookupDatasets;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [field?.id]);
+
+  async function createLookupDataset() {
+    if (!field || !onLookupDatasetsChangeImmediate) return;
+    const newDataset: LookupDataset = { id: crypto.randomUUID(), name: `List ${lookupDatasetsRef.current.length + 1}`, values: [] };
+    const next = [...lookupDatasetsRef.current, newDataset];
+    const ok = await onLookupDatasetsChangeImmediate(next);
+    if (ok) {
+      lookupDatasetsRef.current = next;
+      onChange({ config: { ...field.config, lookupDatasetId: newDataset.id } });
+    }
+  }
+
+  function selectLookupDataset(id: string) {
+    if (!field) return;
+    if (id === "__new__") {
+      createLookupDataset();
+      return;
+    }
+    onChange({ config: { ...field.config, lookupDatasetId: id || undefined } });
+  }
+
+  function updateLookupDatasetName(id: string, name: string) {
+    if (!onLookupDatasetsChange) return;
+    const next = lookupDatasetsRef.current.map((d) => (d.id === id ? { ...d, name } : d));
+    lookupDatasetsRef.current = next;
+    onLookupDatasetsChange(next);
+  }
+
+  function updateLookupDatasetValues(id: string, values: string[]) {
+    if (!onLookupDatasetsChange) return;
+    const next = lookupDatasetsRef.current.map((d) => (d.id === id ? { ...d, values } : d));
+    lookupDatasetsRef.current = next;
+    onLookupDatasetsChange(next);
+  }
+
+  function deleteLookupDataset(id: string) {
+    if (!field || !onLookupDatasetsChangeImmediate) return;
+    const next = lookupDatasetsRef.current.filter((d) => d.id !== id);
+    lookupDatasetsRef.current = next;
+    onLookupDatasetsChangeImmediate(next);
+    if (field.config.lookupDatasetId === id) {
+      onChange({ config: { ...field.config, lookupDatasetId: undefined } });
+    }
+  }
+
+  function handleLookupCsvUpload(id: string, file: File) {
+    if (!onLookupDatasetsChangeImmediate) return;
+    file.text().then((text) => {
+      const values = parseSimpleCsv(text);
+      const next = lookupDatasetsRef.current.map((d) => (d.id === id ? { ...d, values } : d));
+      lookupDatasetsRef.current = next;
+      onLookupDatasetsChangeImmediate(next);
+    });
   }
 
   function toggleCondition(enabled: boolean) {
@@ -621,6 +719,87 @@ export function FieldSettingsPanel({ field, allFields, onChange, selectedCount =
             <Plus size={14} /> Add column
           </button>
           <p className="mt-1 text-xs text-slate-400">Visitors add their own rows when filling out the form.</p>
+        </div>
+      )}
+
+      {field.type === "LOOKUP" && (
+        <div className="space-y-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Reference list</label>
+          <select
+            className="input-field"
+            value={field.config.lookupDatasetId ?? ""}
+            onChange={(e) => selectLookupDataset(e.target.value)}
+          >
+            <option value="">No suggestions (plain text)</option>
+            {lookupDatasets.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name} ({d.values.length})
+              </option>
+            ))}
+            <option value="__new__">+ New list...</option>
+          </select>
+          <p className="text-xs text-slate-400">
+            Any Lookup field in this form can share the same list — no need to re-paste it for each one.
+          </p>
+
+          {selectedDataset && (
+            // Keyed by the dataset's own content, not just its id: these
+            // inputs are uncontrolled (defaultValue) so typing doesn't fight
+            // the debounced-save round trip, same reasoning as the Title/
+            // Product code fields above — but that means a change that
+            // *doesn't* come from typing in this exact input (a CSV upload,
+            // or the debounced save finally catching up) needs the key to
+            // actually change too, or the stale defaultValue would never
+            // re-take. Keying on the full content makes every such change a
+            // remount (harmless when it just matches what's already shown).
+            <div
+              key={`${selectedDataset.id}:${selectedDataset.name}:${selectedDataset.values.join("\n")}`}
+              className="space-y-2 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50"
+            >
+              <input
+                className="input-field text-sm"
+                defaultValue={selectedDataset.name}
+                onChange={(e) => updateLookupDatasetName(selectedDataset.id, e.target.value)}
+                placeholder="List name"
+              />
+              <textarea
+                className="input-field min-h-[100px] font-mono text-xs"
+                defaultValue={selectedDataset.values.join("\n")}
+                placeholder={"One value per line\ne.g.\nAcme Corp\nGlobex\nInitech"}
+                onChange={(e) =>
+                  updateLookupDatasetValues(
+                    selectedDataset.id,
+                    e.target.value
+                      .split(/\r?\n/)
+                      .map((v) => v.trim())
+                      .filter(Boolean),
+                  )
+                }
+              />
+              <div className="flex items-center justify-between gap-2">
+                <label className="btn-secondary cursor-pointer text-xs">
+                  <Upload size={14} /> Upload .csv
+                  <input
+                    type="file"
+                    accept=".csv,text/csv,text/plain"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleLookupCsvUpload(selectedDataset.id, file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => deleteLookupDataset(selectedDataset.id)}
+                  className="text-xs text-red-600 hover:underline dark:text-red-400"
+                >
+                  Delete this list
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

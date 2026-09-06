@@ -24,6 +24,7 @@ export const FIELD_TYPES = [
   "MATRIX",
   "REPEATER",
   "SECTION",
+  "LOOKUP",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -71,6 +72,21 @@ export interface FieldConfig {
   // "half" fields (or three "third" fields) sit side by side on one row
   // instead of every field always taking the full row. Unset = "full".
   width?: "full" | "half" | "third";
+  // LOOKUP — which of the form's named reference lists (Form.lookupDatasets)
+  // this field autocompletes against. Unset = no suggestions offered, but
+  // the field still behaves as a plain text field.
+  lookupDatasetId?: string;
+}
+
+// A named reference list a form owner pastes or uploads (one value per
+// line, or a single-column CSV) — scoped to one form, not shared globally,
+// but reusable by any number of Lookup fields within that same form. e.g.
+// a "Companies" list a "Employer" field and a "Referred by" field both
+// suggest from.
+export interface LookupDataset {
+  id: string;
+  name: string;
+  values: string[];
 }
 
 export interface FieldCondition {
@@ -299,6 +315,7 @@ export interface FormSummaryDto {
 export interface FormDetailDto extends FormSummaryDto {
   description: string | null;
   fields: FieldDto[];
+  lookupDatasets: LookupDataset[];
 }
 
 export interface PublicFormDto {
@@ -308,6 +325,7 @@ export interface PublicFormDto {
   fields: FieldDto[];
   requiresApproval: boolean;
   oneQuestionPerPage: boolean;
+  lookupDatasets: LookupDataset[];
 }
 
 export interface AnswerDto {
@@ -403,6 +421,7 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   MATRIX: "Matrix",
   REPEATER: "Line Items",
   SECTION: "Section",
+  LOOKUP: "Lookup",
 };
 
 export function fieldSupportsOptions(type: FieldType): boolean {

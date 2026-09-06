@@ -13,7 +13,7 @@ import {
   viewableDepartmentIds,
 } from "../lib/permissions";
 import { FIELD_TYPES } from "@sfb/shared";
-import type { FieldDto, FormDetailDto, FormSummaryDto, ResponseDto } from "@sfb/shared";
+import type { FieldDto, FormDetailDto, FormSummaryDto, LookupDataset, ResponseDto } from "@sfb/shared";
 import type { Field as PrismaField, Form as PrismaForm } from "@prisma/client";
 
 export const formsRouter = Router();
@@ -100,6 +100,16 @@ const createFormSchema = z.object({
   departmentId: z.string().nullable().optional(),
 });
 
+// A named reference list a Lookup field autocompletes against — scoped to
+// one form (the `id` just needs to be unique within it, not globally), so
+// any number of Lookup fields in the same form can share one by pointing
+// their config.lookupDatasetId at it.
+const lookupDatasetSchema = z.object({
+  id: z.string(),
+  name: z.string().trim().min(1).max(100),
+  values: z.array(z.string().trim().max(200)).max(2000),
+});
+
 const updateFormSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().max(2000).nullable().optional(),
@@ -109,6 +119,7 @@ const updateFormSchema = z.object({
   approverRoleId: z.string().nullable().optional(),
   productCode: z.string().trim().max(120).nullable().optional(),
   oneQuestionPerPage: z.boolean().optional(),
+  lookupDatasets: z.array(lookupDatasetSchema).max(20).optional(),
 });
 
 const fieldOptionSchema = z.object({
@@ -144,6 +155,7 @@ const fieldConfigSchema = z.object({
   format: z.enum(["any", "letters", "numbers", "alphanumeric"]).optional(),
   repeaterColumns: z.array(fieldOptionSchema).max(10).optional(),
   width: z.enum(["full", "half", "third"]).optional(),
+  lookupDatasetId: z.string().optional(),
 });
 
 const fieldInputSchema = z.object({
@@ -174,6 +186,7 @@ const importFormSchema = z.object({
   description: z.string().trim().max(2000).nullable().optional(),
   productCode: z.string().trim().max(120).nullable().optional(),
   oneQuestionPerPage: z.boolean().optional(),
+  lookupDatasets: z.array(lookupDatasetSchema).max(20).optional(),
   fields: z.array(fieldInputSchema).max(200),
 });
 
@@ -326,6 +339,7 @@ formsRouter.post(
         ownerId: req.userId!,
         productCode: body.productCode ?? null,
         oneQuestionPerPage: body.oneQuestionPerPage ?? false,
+        lookupDatasets: body.lookupDatasets ?? [],
         fields: {
           create: body.fields.map((f) => ({
             type: f.type,
@@ -340,7 +354,7 @@ formsRouter.post(
     });
 
     const dto = await toSummaryDto(form, 0, { canEdit: true, canDelete: true }, req.userId!);
-    res.status(201).json({ form: dto });
+    res.status(201).json({ form: { ...dto, lookupDatasets: form.lookupDatasets as unknown as LookupDataset[] } });
   }),
 );
 
@@ -360,6 +374,7 @@ formsRouter.get(
       ...summary,
       description: form.description,
       fields: fields.map(toFieldDto),
+      lookupDatasets: (form.lookupDatasets as LookupDataset[] | null) ?? [],
     };
     res.json({ form: dto });
   }),
@@ -403,6 +418,7 @@ formsRouter.patch(
         approverRoleId: nextRequiresApproval ? nextApproverRoleId : null,
         ...(body.productCode !== undefined ? { productCode: body.productCode || null } : {}),
         ...(body.oneQuestionPerPage !== undefined ? { oneQuestionPerPage: body.oneQuestionPerPage } : {}),
+        ...(body.lookupDatasets !== undefined ? { lookupDatasets: body.lookupDatasets } : {}),
       },
       include: FORM_INCLUDE,
     });
@@ -412,7 +428,17 @@ formsRouter.patch(
       resolveFormPermissions(req.userId!, updated),
     ]);
     const dto = await toSummaryDto(updated, responseCount, perms, req.userId!);
-    res.json({ form: dto });
+    // lookupDatasets isn't part of FormSummaryDto (kept off the dashboard's
+    // list payload) but the builder's local state is a FormDetailDto that
+    // needs the fresh value whenever this save actually touched it — the
+    // client's merge (`{...prev, ...body.form}`) only overwrites keys that
+    // are actually present, so omitting this when untouched leaves the
+    // client's existing value alone.
+    const responseBody =
+      body.lookupDatasets !== undefined
+        ? { ...dto, lookupDatasets: updated.lookupDatasets as unknown as LookupDataset[] }
+        : dto;
+    res.json({ form: responseBody });
   }),
 );
 
@@ -451,6 +477,11 @@ formsRouter.post(
         approverRoleId,
         productCode: source.productCode,
         oneQuestionPerPage: source.oneQuestionPerPage,
+        // Copied with the same dataset ids as the source — the cloned
+        // fields' config.lookupDatasetId values are copied as-is too, so a
+        // duplicated Lookup field keeps working against its dataset without
+        // needing to be reattached.
+        lookupDatasets: source.lookupDatasets as object,
         fields: {
           create: sourceFields.map((f) => ({
             type: f.type,
@@ -465,7 +496,7 @@ formsRouter.post(
     });
 
     const dto = await toSummaryDto(duplicate, 0, { canEdit: true, canDelete: true }, req.userId!);
-    res.status(201).json({ form: dto });
+    res.status(201).json({ form: { ...dto, lookupDatasets: duplicate.lookupDatasets as unknown as LookupDataset[] } });
   }),
 );
 
@@ -489,6 +520,7 @@ formsRouter.get(
       description: form.description,
       productCode: form.productCode,
       oneQuestionPerPage: form.oneQuestionPerPage,
+      lookupDatasets: form.lookupDatasets,
       fields: fields.map((f) => ({
         type: f.type,
         label: f.label,
